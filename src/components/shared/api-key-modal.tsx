@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import Late from "@getlatedev/node";
 import { useAuthStore } from "@/stores";
 import {
   Dialog,
@@ -45,19 +44,24 @@ export function ApiKeyModal({ open, onOpenChange }: ApiKeyModalProps) {
     setIsValidating(true);
 
     try {
-      const late = new Late({ apiKey: trimmedKey });
-      const { data, error } = await late.usage.getUsageStats();
+      const response = await fetch("/api/validate-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: trimmedKey }),
+      });
 
-      if (error || !data) {
-        toast.error("Invalid API key. Please check and try again.");
+      const result = await response.json();
+
+      if (!response.ok || !result.data) {
+        toast.error(result.error || "Invalid API key. Please check and try again.");
         return;
       }
 
       // Store the API key and usage stats
       storeApiKey(trimmedKey);
-      setUsageStats(data);
+      setUsageStats(result.data);
 
-      toast.success(`Connected to ${data.planName} plan`);
+      toast.success(`Connected to ${result.data.planName} plan`);
       onOpenChange(false);
       router.push("/dashboard");
     } catch (err) {
