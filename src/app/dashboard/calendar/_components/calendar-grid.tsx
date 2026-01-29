@@ -19,7 +19,25 @@ interface Post {
   scheduledFor?: string;
   status: string;
   platforms: Array<{ platform: string }>;
+  mediaItems?: Array<{ type: "image" | "video"; url: string }>;
 }
+
+const getStatusStyles = (status: string) => {
+  switch (status) {
+    case 'scheduled':
+      return 'bg-blue-50 dark:bg-blue-950/30 border-l-2 border-l-blue-500 hover:bg-blue-100 dark:hover:bg-blue-950/50';
+    case 'published':
+      return 'bg-green-50 dark:bg-green-950/30 border-l-2 border-l-green-500 hover:bg-green-100 dark:hover:bg-green-950/50';
+    case 'failed':
+      return 'bg-red-50 dark:bg-red-950/30 border-l-2 border-l-red-500 hover:bg-red-100 dark:hover:bg-red-950/50';
+    case 'publishing':
+      return 'bg-yellow-50 dark:bg-yellow-950/30 border-l-2 border-l-yellow-500';
+    default:
+      return 'bg-muted hover:bg-muted/80';
+  }
+};
+
+const isWeekend = (date: Date) => [0, 6].includes(date.getDay());
 
 interface CalendarGridProps {
   currentDate: Date;
@@ -87,7 +105,8 @@ export function CalendarGrid({
                 "min-h-24 cursor-pointer border-b border-r border-border p-1 transition-colors hover:bg-accent/50",
                 index % 7 === 6 && "border-r-0",
                 index >= days.length - 7 && "border-b-0",
-                !isCurrentMonth && "bg-muted/30"
+                !isCurrentMonth && "bg-muted/30",
+                isCurrentMonth && isWeekend(day) && "bg-muted/20 dark:bg-muted/10"
               )}
             >
               <div className="flex items-center justify-between">
@@ -116,10 +135,19 @@ export function CalendarGrid({
                       e.stopPropagation();
                       onPostClick(post._id);
                     }}
-                    className="flex w-full items-center gap-1 rounded bg-muted p-1 text-left text-xs transition-colors hover:bg-muted/80"
+                    className={cn(
+                      "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs transition-colors",
+                      getStatusStyles(post.status)
+                    )}
                   >
-                    <PlatformIcons platforms={post.platforms} max={2} />
-                    <span className="flex-1 truncate">{post.content}</span>
+                    {post.mediaItems?.[0] && (
+                      <img
+                        src={post.mediaItems[0].url}
+                        alt=""
+                        className="h-4 w-4 rounded object-cover flex-shrink-0"
+                      />
+                    )}
+                    <span className="flex-1 truncate">{post.content || "(No content)"}</span>
                   </button>
                 ))}
                 {dayPosts.length > 2 && (

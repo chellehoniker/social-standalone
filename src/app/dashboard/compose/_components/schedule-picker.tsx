@@ -87,6 +87,55 @@ export function SchedulePicker({
         {scheduleOptions.find((o) => o.value === scheduleType)?.description}
       </p>
 
+      {/* Quick select options for scheduled posts */}
+      {scheduleType === "scheduled" && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() + 1);
+              d.setHours(9, 0, 0, 0);
+              onDateChange(d);
+              onTimeChange("09:00");
+            }}
+          >
+            Tomorrow 9 AM
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() + 1);
+              d.setHours(18, 0, 0, 0);
+              onDateChange(d);
+              onTimeChange("18:00");
+            }}
+          >
+            Tomorrow 6 PM
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => {
+              const d = new Date();
+              const daysUntilMonday = (8 - d.getDay()) % 7 || 7;
+              d.setDate(d.getDate() + daysUntilMonday);
+              d.setHours(10, 0, 0, 0);
+              onDateChange(d);
+              onTimeChange("10:00");
+            }}
+          >
+            Next Monday
+          </Button>
+        </div>
+      )}
+
       {/* Date/time picker for scheduled posts */}
       {scheduleType === "scheduled" && (
         <div className="grid gap-4 sm:grid-cols-2">

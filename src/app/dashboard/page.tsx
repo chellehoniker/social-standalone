@@ -19,6 +19,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
+  ListOrdered,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -113,20 +114,22 @@ function StatsGrid({ accounts, scheduledPosts, publishedPosts, accountsLoading, 
     <div className="grid gap-4 sm:grid-cols-3">
       {stats.map((stat) => (
         <Link key={stat.label} href={stat.href}>
-          <Card className="transition-colors hover:bg-muted/50">
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <stat.icon className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {stat.isLoading ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    stat.value
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
+          <Card className="transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="text-3xl font-bold mt-1">
+                    {stat.isLoading ? (
+                      <Loader2 className="h-7 w-7 animate-spin" />
+                    ) : (
+                      stat.value
+                    )}
+                  </p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
+                  <stat.icon className="h-6 w-6 text-primary" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -242,10 +245,10 @@ function PostsCard({ posts, isLoading }: PostsCardProps) {
 
 function QuickActionsCard() {
   const actions = [
-    { icon: PenSquare, label: "Create Post", href: "/dashboard/compose" },
-    { icon: Users, label: "Connect Account", href: "/dashboard/accounts" },
-    { icon: Calendar, label: "View Calendar", href: "/dashboard/calendar" },
-    { icon: Clock, label: "Manage Queue", href: "/dashboard/queue" },
+    { icon: PenSquare, label: "Create Post", description: "Write and schedule content", href: "/dashboard/compose" },
+    { icon: Calendar, label: "View Calendar", description: "See scheduled posts", href: "/dashboard/calendar" },
+    { icon: ListOrdered, label: "Manage Queue", description: "Set posting times", href: "/dashboard/queue" },
+    { icon: Users, label: "Connect Account", description: "Add new platforms", href: "/dashboard/accounts" },
   ];
 
   return (
@@ -254,19 +257,17 @@ function QuickActionsCard() {
         <CardTitle className="text-base font-medium">Quick Actions</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {actions.map((action) => (
-            <Button
+            <Link
               key={action.href}
-              variant="outline"
-              className="h-auto flex-col gap-2 p-4"
-              asChild
+              href={action.href}
+              className="flex flex-col gap-2 rounded-lg border p-4 transition-all duration-200 hover:border-primary/30 hover:bg-accent/50 hover:-translate-y-0.5"
             >
-              <Link href={action.href}>
-                <action.icon className="h-6 w-6" />
-                <span>{action.label}</span>
-              </Link>
-            </Button>
+              <action.icon className="h-5 w-5 text-primary" />
+              <span className="font-medium text-sm">{action.label}</span>
+              <span className="text-xs text-muted-foreground">{action.description}</span>
+            </Link>
           ))}
         </div>
       </CardContent>

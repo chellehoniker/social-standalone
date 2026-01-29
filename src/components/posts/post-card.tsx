@@ -193,7 +193,7 @@ export function PlatformIcons({ platforms, max = 4 }: PlatformIconsProps) {
         >
           <PlatformIcon
             platform={p.platform as Platform}
-            size="sm"
+            size="xs"
             showColor
           />
         </div>

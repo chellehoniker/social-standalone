@@ -96,7 +96,12 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden">
+        {/* Background gradient orbs */}
+        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+
+        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
             Your social media
@@ -137,7 +142,7 @@ export default function LandingPage() {
                 className="flex flex-col items-center gap-2 group"
                 title={PLATFORM_NAMES[platform]}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-accent">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted transition-all duration-200 group-hover:bg-accent group-hover:scale-105">
                   <PlatformIcon
                     platform={platform}
                     size="lg"
@@ -150,6 +155,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
         </div>
       </section>
 
@@ -167,10 +173,10 @@ export default function LandingPage() {
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="rounded-xl border border-border bg-card p-6"
+                className="rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
+                  <feature.icon className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="mt-4 font-semibold">{feature.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">

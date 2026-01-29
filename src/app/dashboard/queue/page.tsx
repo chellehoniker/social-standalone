@@ -16,7 +16,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -50,11 +49,8 @@ export default function QueuePage() {
     minute: 0,
   });
 
-  // Validation for the add slot form
-  const isValidSlot = newSlot.hour >= 0 && newSlot.hour <= 23 &&
-                       newSlot.minute >= 0 && newSlot.minute <= 59;
-  const hourError = newSlot.hour < 0 || newSlot.hour > 23 ? "Hour must be 0-23" : null;
-  const minuteError = newSlot.minute < 0 || newSlot.minute > 59 ? "Minute must be 0-59" : null;
+  // With Select dropdowns, slots are always valid
+  const isValidSlot = true;
 
   const { data: slotsData, isLoading: slotsLoading } = useQueueSlots();
   const { data: previewData, isLoading: previewLoading } = useQueuePreview(10);
@@ -251,8 +247,15 @@ export default function QueuePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {queuedPosts.map((post: any) => (
-                <PostListItem key={post._id} post={post} />
+              {queuedPosts.map((post: any, index: number) => (
+                <div key={post._id} className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium flex-shrink-0">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <PostListItem post={post} />
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -288,38 +291,49 @@ export default function QueuePage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Hour (0-23)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={newSlot.hour}
-                  onChange={(e) =>
-                    setNewSlot({ ...newSlot, hour: parseInt(e.target.value) || 0 })
+                <Label>Hour</Label>
+                <Select
+                  value={newSlot.hour.toString()}
+                  onValueChange={(v) =>
+                    setNewSlot({ ...newSlot, hour: parseInt(v) })
                   }
-                  className={hourError ? "border-destructive" : ""}
-                />
-                {hourError && (
-                  <p className="text-xs text-destructive">{hourError}</p>
-                )}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i.toString().padStart(2, '0')}:00
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>Minute (0-59)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={newSlot.minute}
-                  onChange={(e) =>
-                    setNewSlot({ ...newSlot, minute: parseInt(e.target.value) || 0 })
+                <Label>Minute</Label>
+                <Select
+                  value={newSlot.minute.toString()}
+                  onValueChange={(v) =>
+                    setNewSlot({ ...newSlot, minute: parseInt(v) })
                   }
-                  className={minuteError ? "border-destructive" : ""}
-                />
-                {minuteError && (
-                  <p className="text-xs text-destructive">{minuteError}</p>
-                )}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 15, 30, 45].map((m) => (
+                      <SelectItem key={m} value={m.toString()}>
+                        :{m.toString().padStart(2, '0')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Preview: {formatTime(newSlot.hour, newSlot.minute)} on {DAYS_OF_WEEK[newSlot.dayOfWeek]}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddSlot(false)}>
