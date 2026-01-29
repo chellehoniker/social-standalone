@@ -152,7 +152,7 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {accounts.slice(0, 5).map((account: any) => (
                     <div key={account._id} className="flex items-center gap-2">
-                      <AccountAvatar account={account} size="xs" />
+                      <AccountAvatar account={account} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">
                           {account.displayName || account.username}
