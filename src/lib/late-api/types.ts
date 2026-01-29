@@ -43,7 +43,7 @@ export const PLATFORM_NAMES: Record<Platform, string> = {
   threads: "Threads",
   bluesky: "Bluesky",
   snapchat: "Snapchat",
-  googlebusiness: "Google Business",
+  googlebusiness: "Google",
   reddit: "Reddit",
   telegram: "Telegram",
 };
