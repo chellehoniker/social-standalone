@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useAuthStore, useAppStore } from "@/stores";
+import { useProfiles } from "@/hooks";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Logo } from "@/components/shared/logo";
+import { Logo, ErrorBoundary } from "@/components/shared";
 import {
   LayoutDashboard,
   PenSquare,
@@ -28,6 +29,8 @@ import {
   Menu,
   LogOut,
   ChevronRight,
+  ChevronDown,
+  Check,
   ExternalLink,
 } from "lucide-react";
 
@@ -72,8 +75,12 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { apiKey, usageStats, logout } = useAuthStore();
-  const { sidebarOpen, setSidebarOpen, toggleSidebar } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, toggleSidebar, defaultProfileId, setDefaultProfileId } = useAppStore();
   const { theme, setTheme } = useTheme();
+  const { data: profilesData } = useProfiles();
+
+  const profiles = profilesData?.profiles || [];
+  const currentProfile = profiles.find((p: any) => p._id === defaultProfileId) || profiles[0];
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -146,6 +153,7 @@ export default function DashboardLayout({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground"
+                  aria-label="Open Late dashboard in new tab"
                 >
                   <ExternalLink className="h-4 w-4" />
                 </a>
@@ -198,6 +206,7 @@ export default function DashboardLayout({
               size="icon"
               className="lg:hidden"
               onClick={toggleSidebar}
+              aria-label="Toggle sidebar menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -221,9 +230,48 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Profile Selector */}
+            {profiles.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <div
+                      className="h-3 w-3 rounded-full"
+                      style={{ backgroundColor: currentProfile?.color || '#888' }}
+                    />
+                    <span className="max-w-24 truncate hidden sm:inline">
+                      {currentProfile?.name || 'Select Profile'}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Switch Profile</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {profiles.map((profile: any) => (
+                    <DropdownMenuItem
+                      key={profile._id}
+                      onClick={() => setDefaultProfileId(profile._id)}
+                      className="gap-2"
+                    >
+                      <div
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: profile.color || '#888' }}
+                      />
+                      <span className="flex-1 truncate">{profile.name}</span>
+                      {profile._id === defaultProfileId && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Toggle dark mode"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
               {theme === "dark" ? (
@@ -269,7 +317,9 @@ export default function DashboardLayout({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </div>
   );

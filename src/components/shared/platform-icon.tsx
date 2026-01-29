@@ -77,10 +77,11 @@ interface PlatformIconProps {
   platform: Platform;
   className?: string;
   showColor?: boolean;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
 }
 
 const sizeClasses = {
+  xs: "h-2.5 w-2.5",
   sm: "h-4 w-4",
   md: "h-5 w-5",
   lg: "h-6 w-6",

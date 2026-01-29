@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 import { useAppStore } from "@/stores";
 import { useNextQueueSlot } from "@/hooks";
 import { Button } from "@/components/ui/button";

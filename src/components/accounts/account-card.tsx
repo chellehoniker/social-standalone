@@ -48,6 +48,7 @@ export function AccountCard({
               size="icon"
               className="text-muted-foreground hover:text-destructive"
               onClick={() => onDelete(account._id)}
+              aria-label={`Disconnect ${account.displayName || account.username} account`}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -91,6 +92,13 @@ export function AccountAvatar({ account, size = "md" }: AccountAvatarProps) {
     lg: "h-6 w-6 -bottom-1 -right-1",
   };
 
+  // Map badge container sizes to appropriate icon sizes for proper padding
+  const badgeIconSizes: Record<"sm" | "md" | "lg", "xs" | "sm"> = {
+    sm: "xs",   // 16px container -> 10px icon
+    md: "xs",   // 20px container -> 10px icon
+    lg: "sm",   // 24px container -> 16px icon
+  };
+
   return (
     <div className="relative">
       <Avatar className={sizeClasses[size]}>
@@ -112,7 +120,7 @@ export function AccountAvatar({ account, size = "md" }: AccountAvatarProps) {
         <PlatformIcon
           platform={platform}
           className="text-white"
-          size="sm"
+          size={badgeIconSizes[size]}
         />
       </div>
     </div>

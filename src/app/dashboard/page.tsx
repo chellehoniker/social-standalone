@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useAccounts, usePosts, useProfiles } from "@/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { AccountAvatar } from "@/components/accounts";
 import { PlatformIcons, PostStatusBadge } from "@/components/posts";
 import { PLATFORM_NAMES, type Platform } from "@/lib/late-api";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns/format";
+import { parseISO } from "date-fns/parseISO";
 import {
   PenSquare,
   Calendar,
@@ -26,10 +28,12 @@ export default function DashboardPage() {
 
   const accounts = accountsData?.accounts || [];
   const posts = postsData?.posts || [];
-  const scheduledPosts = posts.filter((p: any) => p.status === "scheduled");
-  const publishedPosts = posts.filter((p: any) => p.status === "published");
 
-  const isLoading = profilesLoading || accountsLoading || postsLoading;
+  // Memoize filtered posts to avoid recalculation on each render
+  const { scheduledPosts, publishedPosts } = useMemo(() => ({
+    scheduledPosts: posts.filter((p: any) => p.status === "scheduled"),
+    publishedPosts: posts.filter((p: any) => p.status === "published"),
+  }), [posts]);
 
   return (
     <div className="space-y-6">
@@ -49,23 +53,24 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Progressive loading: each stat loads independently */}
       <StatsGrid
         accounts={accounts.length}
         scheduledPosts={scheduledPosts.length}
         publishedPosts={publishedPosts.length}
-        isLoading={isLoading}
+        accountsLoading={accountsLoading}
+        postsLoading={postsLoading}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Connected Accounts */}
+        {/* Connected Accounts - loads independently */}
         <AccountsCard accounts={accounts} isLoading={accountsLoading} />
 
-        {/* Recent Posts */}
+        {/* Recent Posts - loads independently */}
         <PostsCard posts={posts} isLoading={postsLoading} />
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - static, no loading needed */}
       <QuickActionsCard />
     </div>
   );
@@ -75,28 +80,32 @@ interface StatsGridProps {
   accounts: number;
   scheduledPosts: number;
   publishedPosts: number;
-  isLoading: boolean;
+  accountsLoading: boolean;
+  postsLoading: boolean;
 }
 
-function StatsGrid({ accounts, scheduledPosts, publishedPosts, isLoading }: StatsGridProps) {
+function StatsGrid({ accounts, scheduledPosts, publishedPosts, accountsLoading, postsLoading }: StatsGridProps) {
   const stats = [
     {
       label: "Connected Accounts",
       value: accounts,
       icon: Users,
       href: "/dashboard/accounts",
+      isLoading: accountsLoading,
     },
     {
       label: "Scheduled Posts",
       value: scheduledPosts,
       icon: Clock,
       href: "/dashboard/calendar",
+      isLoading: postsLoading,
     },
     {
       label: "Published Posts",
       value: publishedPosts,
       icon: CheckCircle2,
       href: "/dashboard/calendar",
+      isLoading: postsLoading,
     },
   ];
 
@@ -111,7 +120,7 @@ function StatsGrid({ accounts, scheduledPosts, publishedPosts, isLoading }: Stat
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {isLoading ? (
+                  {stat.isLoading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
                     stat.value

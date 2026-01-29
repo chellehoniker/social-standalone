@@ -2,13 +2,11 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import {
-  format,
-  addMonths,
-  subMonths,
-  startOfMonth,
-  endOfMonth,
-} from "date-fns";
+import { format } from "date-fns/format";
+import { addMonths } from "date-fns/addMonths";
+import { subMonths } from "date-fns/subMonths";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
 import { useCalendarPosts, useDeletePost } from "@/hooks";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,22 +71,25 @@ export default function CalendarPage() {
     }
   };
 
-  // Stats for the month
-  const monthPosts = posts.filter((p: any) => {
-    if (!p.scheduledFor) return false;
-    const postDate = new Date(p.scheduledFor);
-    return (
-      postDate >= startOfMonth(currentDate) &&
-      postDate <= endOfMonth(currentDate)
-    );
-  });
+  // Stats for the month - memoized to avoid recalculation on every render
+  const monthPosts = useMemo(() => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    return posts.filter((p: any) => {
+      if (!p.scheduledFor) return false;
+      const postDate = new Date(p.scheduledFor);
+      return postDate >= monthStart && postDate <= monthEnd;
+    });
+  }, [posts, currentDate]);
 
-  const scheduledCount = monthPosts.filter(
-    (p: any) => p.status === "scheduled"
-  ).length;
-  const publishedCount = monthPosts.filter(
-    (p: any) => p.status === "published"
-  ).length;
+  const scheduledCount = useMemo(
+    () => monthPosts.filter((p: any) => p.status === "scheduled").length,
+    [monthPosts]
+  );
+  const publishedCount = useMemo(
+    () => monthPosts.filter((p: any) => p.status === "published").length,
+    [monthPosts]
+  );
 
   return (
     <div className="space-y-6">
@@ -135,9 +136,7 @@ export default function CalendarPage() {
 
       {/* Calendar */}
       {isLoading ? (
-        <div className="flex h-96 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <CalendarSkeleton />
       ) : (
         <CalendarGrid
           currentDate={currentDate}
@@ -198,6 +197,48 @@ export default function CalendarPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function CalendarSkeleton() {
+  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  return (
+    <div className="animate-pulse rounded-lg border border-border bg-card">
+      {/* Week day headers */}
+      <div className="grid grid-cols-7 border-b border-border">
+        {weekDays.map((day) => (
+          <div
+            key={day}
+            className="px-2 py-3 text-center text-sm font-medium text-muted-foreground"
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid skeleton - 5 rows of 7 days */}
+      <div className="grid grid-cols-7">
+        {Array.from({ length: 35 }).map((_, index) => (
+          <div
+            key={index}
+            className={`min-h-24 border-b border-r border-border p-1 ${
+              index % 7 === 6 ? "border-r-0" : ""
+            } ${index >= 28 ? "border-b-0" : ""}`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="h-7 w-7 rounded-full bg-muted" />
+            </div>
+            {/* Skeleton post placeholders for some cells */}
+            {index % 3 === 0 && (
+              <div className="mt-1 space-y-1">
+                <div className="h-5 w-full rounded bg-muted" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

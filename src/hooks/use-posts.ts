@@ -5,6 +5,7 @@ import type { Platform, PlatformSpecificData } from "@/lib/late-api";
 
 export const postKeys = {
   all: ["posts"] as const,
+  lists: () => ["posts", "list"] as const,
   list: (filters: PostFilters) => ["posts", "list", filters] as const,
   detail: (postId: string) => ["posts", "detail", postId] as const,
 };
@@ -117,7 +118,8 @@ export function useCreatePost() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+      // Invalidate all list queries but not details (they aren't affected)
+      queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
   });
 }
@@ -140,8 +142,9 @@ export function useUpdatePost() {
       return data;
     },
     onSuccess: (_, { postId }) => {
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+      // Invalidate the specific post detail and all lists (post may appear in multiple list views)
       queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
+      queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
   });
 }
@@ -160,9 +163,12 @@ export function useDeletePost() {
         path: { postId },
       });
       if (error) throw error;
+      return postId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+    onSuccess: (postId) => {
+      // Remove the deleted post from cache and invalidate lists
+      queryClient.removeQueries({ queryKey: postKeys.detail(postId) });
+      queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
   });
 }
@@ -184,8 +190,9 @@ export function useRetryPost() {
       return data;
     },
     onSuccess: (_, postId) => {
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+      // Invalidate the specific post and all lists (status changes)
       queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
+      queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
   });
 }

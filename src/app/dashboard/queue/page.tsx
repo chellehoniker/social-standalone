@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns/format";
+import { parseISO } from "date-fns/parseISO";
 import { toast } from "sonner";
 import {
   useQueueSlots,
@@ -48,6 +49,12 @@ export default function QueuePage() {
     hour: 9,
     minute: 0,
   });
+
+  // Validation for the add slot form
+  const isValidSlot = newSlot.hour >= 0 && newSlot.hour <= 23 &&
+                       newSlot.minute >= 0 && newSlot.minute <= 59;
+  const hourError = newSlot.hour < 0 || newSlot.hour > 23 ? "Hour must be 0-23" : null;
+  const minuteError = newSlot.minute < 0 || newSlot.minute > 59 ? "Minute must be 0-59" : null;
 
   const { data: slotsData, isLoading: slotsLoading } = useQueueSlots();
   const { data: previewData, isLoading: previewLoading } = useQueuePreview(10);
@@ -127,9 +134,7 @@ export default function QueuePage() {
           </CardHeader>
           <CardContent>
             {slotsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <QueueScheduleSkeleton />
             ) : slots.length === 0 ? (
               <div className="py-8 text-center">
                 <Clock className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -167,6 +172,7 @@ export default function QueuePage() {
                               <button
                                 onClick={() => handleRemoveSlot(slot)}
                                 className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                                aria-label={`Remove ${formatTime(slot.hour, slot.minute)} slot`}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -191,9 +197,7 @@ export default function QueuePage() {
           </CardHeader>
           <CardContent>
             {previewLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <UpcomingSlotsSkeleton />
             ) : upcomingSlots.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No upcoming slots. Add time slots to your schedule.
@@ -232,9 +236,7 @@ export default function QueuePage() {
         </CardHeader>
         <CardContent>
           {postsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <QueuedPostsSkeleton />
           ) : queuedPosts.length === 0 ? (
             <div className="py-8 text-center">
               <ListOrdered className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -284,7 +286,7 @@ export default function QueuePage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Hour</Label>
+                <Label>Hour (0-23)</Label>
                 <Input
                   type="number"
                   min={0}
@@ -293,10 +295,14 @@ export default function QueuePage() {
                   onChange={(e) =>
                     setNewSlot({ ...newSlot, hour: parseInt(e.target.value) || 0 })
                   }
+                  className={hourError ? "border-destructive" : ""}
                 />
+                {hourError && (
+                  <p className="text-xs text-destructive">{hourError}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label>Minute</Label>
+                <Label>Minute (0-59)</Label>
                 <Input
                   type="number"
                   min={0}
@@ -305,7 +311,11 @@ export default function QueuePage() {
                   onChange={(e) =>
                     setNewSlot({ ...newSlot, minute: parseInt(e.target.value) || 0 })
                   }
+                  className={minuteError ? "border-destructive" : ""}
                 />
+                {minuteError && (
+                  <p className="text-xs text-destructive">{minuteError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -315,7 +325,7 @@ export default function QueuePage() {
             </Button>
             <Button
               onClick={handleAddSlot}
-              disabled={updateSlotsMutation.isPending}
+              disabled={updateSlotsMutation.isPending || !isValidSlot}
             >
               {updateSlotsMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -325,6 +335,54 @@ export default function QueuePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function QueueScheduleSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="space-y-2">
+          <div className="h-4 w-20 rounded bg-muted" />
+          <div className="flex flex-wrap gap-2">
+            <div className="h-6 w-16 rounded-full bg-muted" />
+            <div className="h-6 w-16 rounded-full bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UpcomingSlotsSkeleton() {
+  return (
+    <div className="animate-pulse space-y-2">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-center justify-between rounded-lg bg-muted p-3">
+          <div className="h-4 w-32 rounded bg-background" />
+          <div className="h-6 w-16 rounded bg-background" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function QueuedPostsSkeleton() {
+  return (
+    <div className="animate-pulse space-y-2">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
+          <div className="h-12 w-12 shrink-0 rounded bg-muted" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-3/4 rounded bg-muted" />
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-muted" />
+              <div className="h-5 w-16 rounded bg-muted" />
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

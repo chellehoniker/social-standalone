@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import {
   useAccounts,
@@ -45,8 +45,11 @@ export default function AccountsPage() {
   const deleteMutation = useDeleteAccount();
 
   const accounts = (accountsData?.accounts || []) as any[];
-  const healthMap = new Map<string, any>(
-    healthData?.accounts?.map((a: any) => [a.accountId, a] as [string, any]) || []
+  const healthMap = useMemo(
+    () => new Map<string, any>(
+      healthData?.accounts?.map((a: any) => [a.accountId, a] as [string, any]) || []
+    ),
+    [healthData]
   );
 
   const handleConnect = async (platform: Platform) => {

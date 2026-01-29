@@ -1,17 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  isSameMonth,
-  parseISO,
-  isToday,
-} from "date-fns";
+import { format } from "date-fns/format";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
+import { startOfWeek } from "date-fns/startOfWeek";
+import { endOfWeek } from "date-fns/endOfWeek";
+import { eachDayOfInterval } from "date-fns/eachDayOfInterval";
+import { isSameMonth } from "date-fns/isSameMonth";
+import { parseISO } from "date-fns/parseISO";
+import { isToday } from "date-fns/isToday";
 import { PlatformIcons } from "@/components/posts";
 import { cn } from "@/lib/utils";
 
