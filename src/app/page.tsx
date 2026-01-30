@@ -31,8 +31,8 @@ export default function LandingPage() {
 
   useEffect(() => {
     setMounted(true);
-    document.body.classList.add("landing-page");
-    return () => document.body.classList.remove("landing-page");
+    document.documentElement.classList.add("landing-page");
+    return () => document.documentElement.classList.remove("landing-page");
   }, []);
 
   // Redirect to dashboard if already authenticated
