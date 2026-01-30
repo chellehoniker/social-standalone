@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useAccounts, usePosts, useQueuePreview } from "@/hooks";
+import { useAccounts, useAccountsHealth, usePosts, useQueuePreview } from "@/hooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +25,15 @@ import {
 
 export default function DashboardPage() {
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
+  const { data: healthData } = useAccountsHealth();
   const { data: postsData, isLoading: postsLoading } = usePosts({ limit: 10 });
   const { data: queueData } = useQueuePreview(5);
 
   const accounts = accountsData?.accounts || [];
   const posts = postsData?.posts || [];
+  const accountsNeedingAttention = (healthData?.accounts || []).filter(
+    (a: any) => a.status === "needs_reconnect"
+  ).length;
   const upcomingSlots = queueData?.slots || [];
 
   const { scheduledPosts, publishedPosts, failedPosts } = useMemo(() => ({
@@ -47,6 +51,24 @@ export default function DashboardPage() {
           Welcome back! Here&apos;s your overview.
         </p>
       </div>
+
+      {/* Account health warning */}
+      {accountsNeedingAttention > 0 && (
+        <Link
+          href="/dashboard/accounts"
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-950"
+        >
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {accountsNeedingAttention} {accountsNeedingAttention === 1 ? "account needs" : "accounts need"} reconnection
+            </p>
+            <p className="text-xs opacity-80">
+              Click to review and fix connection issues
+            </p>
+          </div>
+        </Link>
+      )}
 
       {/* Overview Stats */}
       <Card>

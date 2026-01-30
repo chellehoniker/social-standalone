@@ -31,7 +31,7 @@ import {
 import { AccountAvatar } from "@/components/accounts";
 import { ConnectPlatformGrid } from "./_components/connect-platform-grid";
 import { PLATFORM_NAMES, type Platform } from "@/lib/late-api";
-import { Users, Plus, Loader2, AlertCircle, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
+import { Users, Plus, Loader2, AlertCircle, RefreshCw, Trash2 } from "lucide-react";
 
 export default function AccountsPage() {
   const [showConnectDialog, setShowConnectDialog] = useState(false);
@@ -112,7 +112,6 @@ export default function AccountsPage() {
           ) : (
             accounts.map((account: any) => {
               const health = healthMap.get(account._id);
-              const isHealthy = health?.status === "healthy";
               const needsReconnect = health?.status === "needs_reconnect";
 
               return (
@@ -130,17 +129,9 @@ export default function AccountsPage() {
                         <Badge variant="secondary" className="text-xs">
                           {PLATFORM_NAMES[account.platform as Platform]}
                         </Badge>
-                        {health && (
-                          <span className={`flex items-center gap-1 text-xs ${
-                            isHealthy ? "text-green-600 dark:text-green-400" :
-                            needsReconnect ? "text-amber-600 dark:text-amber-400" :
-                            "text-muted-foreground"
-                          }`}>
-                            {isHealthy ? (
-                              <><CheckCircle2 className="h-3 w-3" /> Healthy</>
-                            ) : needsReconnect ? (
-                              <><AlertCircle className="h-3 w-3" /> Needs reconnect</>
-                            ) : null}
+                        {needsReconnect && (
+                          <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                            <AlertCircle className="h-3 w-3" /> Needs reconnect
                           </span>
                         )}
                       </div>
