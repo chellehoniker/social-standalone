@@ -112,9 +112,14 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-transparent to-primary/5">
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background gradients */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/10 pointer-events-none" />
+      <div className="hidden md:block absolute -top-40 -right-40 z-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="hidden md:block absolute -bottom-40 -left-40 z-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+
       {/* Header */}
-      <header className="border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="relative z-10 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
           <Logo size="md" />
 
@@ -154,7 +159,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative">
+      <section className="relative z-10">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
@@ -214,7 +219,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20">
+      <section className="relative z-10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold">Everything you need</h2>
@@ -243,7 +248,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20">
+      <section className="relative z-10 py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold">Frequently Asked Questions</h2>
@@ -264,7 +269,7 @@ export default function LandingPage() {
       </section>
 
       {/* Open Source Section */}
-      <section className="py-20">
+      <section className="relative z-10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-border bg-card p-8 text-center sm:p-12">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -299,7 +304,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8">
+      <footer className="relative z-10 border-t border-border py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <Logo size="sm" />
