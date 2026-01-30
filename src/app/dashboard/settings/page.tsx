@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Key, Moon, Sun, Globe, Trash2, ExternalLink } from "lucide-react";
+import { Key, Moon, Sun, Globe, LogOut, ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -210,21 +210,21 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Danger Zone */}
-      <Card className="border-destructive/50">
+      {/* Session */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-destructive">
-            <Trash2 className="h-4 w-4" />
-            Danger Zone
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LogOut className="h-4 w-4" />
+            Session
           </CardTitle>
           <CardDescription>
-            Irreversible actions for your account.
+            Manage your current session on this device.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">Sign Out</Button>
+              <Button variant="outline">Sign Out</Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -236,10 +236,7 @@ export default function SettingsPage() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleLogout}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
+                <AlertDialogAction onClick={handleLogout}>
                   Sign Out
                 </AlertDialogAction>
               </AlertDialogFooter>
