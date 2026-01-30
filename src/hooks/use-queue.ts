@@ -12,9 +12,12 @@ export const queueKeys = {
 };
 
 // SDK-aligned types
+// Note: API may return either `time` string or `hour`/`minute` numbers depending on how slot was created
 export interface QueueSlot {
   dayOfWeek: number; // 0-6, Sunday = 0
-  time: string; // "HH:mm" format
+  time?: string; // "HH:mm" format (preferred)
+  hour?: number; // Legacy: 0-23
+  minute?: number; // Legacy: 0-59
 }
 
 export interface QueueSchedule {
@@ -37,6 +40,30 @@ export function formatTime(hour: number, minute: number): string {
 export function parseTime(time: string): { hour: number; minute: number } {
   const [hour, minute] = time.split(":").map(Number);
   return { hour: hour || 0, minute: minute || 0 };
+}
+
+/**
+ * Get the time string from a slot, handling both formats.
+ * API may return either `time` string or `hour`/`minute` numbers.
+ */
+export function getSlotTime(slot: QueueSlot): string {
+  if (slot.time) {
+    return slot.time;
+  }
+  if (typeof slot.hour === "number" && typeof slot.minute === "number") {
+    return formatTime(slot.hour, slot.minute);
+  }
+  return "00:00"; // fallback
+}
+
+/**
+ * Normalize a slot to always have the `time` field.
+ */
+export function normalizeSlot(slot: QueueSlot): QueueSlot {
+  return {
+    dayOfWeek: slot.dayOfWeek,
+    time: getSlotTime(slot),
+  };
 }
 
 /**

@@ -72,6 +72,8 @@ export {
   formatQueueSlot,
   formatTime,
   parseTime,
+  getSlotTime,
+  normalizeSlot,
   getUserTimezone,
   getTimezoneOptions,
   formatTimezoneDisplay,

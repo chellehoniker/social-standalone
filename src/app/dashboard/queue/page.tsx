@@ -16,6 +16,7 @@ import {
   getTimezoneOptions,
   formatTime,
   parseTime,
+  getSlotTime,
   type QueueSlot,
   type QueueSchedule,
 } from "@/hooks";
@@ -441,26 +442,29 @@ export default function QueuePage() {
                               <div className="flex flex-1 flex-wrap gap-2">
                                 {daySlots
                                   .sort((a, b) => {
-                                    const aTime = parseTime(a.slot.time);
-                                    const bTime = parseTime(b.slot.time);
+                                    const aTime = parseTime(getSlotTime(a.slot));
+                                    const bTime = parseTime(getSlotTime(b.slot));
                                     return (aTime.hour * 60 + aTime.minute) - (bTime.hour * 60 + bTime.minute);
                                   })
-                                  .map(({ slot, index }) => (
+                                  .map(({ slot, index }) => {
+                                    const slotTime = getSlotTime(slot);
+                                    return (
                                     <Badge
                                       key={index}
                                       variant="secondary"
                                       className="gap-1 pr-1"
                                     >
-                                      {slot.time}
+                                      {slotTime}
                                       <button
                                         onClick={() => handleRemoveSlot(queue, index)}
                                         className="ml-1 rounded-full p-0.5 hover:bg-muted"
-                                        aria-label={`Remove ${slot.time} slot`}
+                                        aria-label={`Remove ${slotTime} slot`}
                                       >
                                         <Trash2 className="h-3 w-3" />
                                       </button>
                                     </Badge>
-                                  ))}
+                                    );
+                                  })}
                               </div>
                             </div>
                           );
@@ -614,7 +618,7 @@ export default function QueuePage() {
                 <div className="flex flex-wrap gap-2">
                   {newQueueSlots.map((slot, i) => (
                     <Badge key={i} variant="secondary" className="gap-1 pr-1">
-                      {DAYS_OF_WEEK[slot.dayOfWeek].slice(0, 3)} {slot.time}
+                      {DAYS_OF_WEEK[slot.dayOfWeek].slice(0, 3)} {getSlotTime(slot)}
                       <button
                         onClick={() => handleRemoveSlotFromNewQueue(i)}
                         className="ml-1 rounded-full p-0.5 hover:bg-muted"
