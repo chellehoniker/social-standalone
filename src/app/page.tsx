@@ -115,7 +115,10 @@ export default function LandingPage() {
     <div className="min-h-screen relative overflow-hidden">
       {/* Background gradient blobs */}
       <div className="absolute -top-40 -right-40 z-0 w-[500px] h-[500px] bg-primary/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -left-40 z-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 -left-20 z-0 w-[400px] h-[400px] bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 right-0 z-0 w-[350px] h-[350px] bg-primary/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/3 z-0 w-[450px] h-[450px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -left-40 z-0 w-[500px] h-[500px] bg-primary/25 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
       <header className="relative z-10 border-b border-border bg-background/80 backdrop-blur-sm">
