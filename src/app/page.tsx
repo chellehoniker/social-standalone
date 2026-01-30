@@ -112,7 +112,10 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="landing-gradients relative min-h-screen">
+    <>
+      <div className="gradient-orb gradient-orb-top" />
+      <div className="gradient-orb gradient-orb-bottom" />
+      <div className="relative min-h-screen">
 
       {/* Header */}
       <header className="border-b border-border">
@@ -322,6 +325,7 @@ export default function LandingPage() {
 
       {/* API Key Modal */}
       <ApiKeyModal open={showApiKeyModal} onOpenChange={setShowApiKeyModal} />
-    </div>
+      </div>
+    </>
   );
 }
