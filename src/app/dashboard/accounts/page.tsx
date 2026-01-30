@@ -78,10 +78,10 @@ export default function AccountsPage() {
   const connectedPlatforms = new Set<string>(accounts.map((a: any) => a.platform as string));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold">Accounts</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Accounts</h1>
         <p className="text-muted-foreground">
           Manage your connected social media accounts.
         </p>

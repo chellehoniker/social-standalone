@@ -41,10 +41,10 @@ export default function DashboardPage() {
   }), [posts]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">
           Welcome back! Here&apos;s your overview.
         </p>
