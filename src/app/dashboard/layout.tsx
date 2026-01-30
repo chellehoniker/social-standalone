@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getAvatarUrl } from "@/lib/avatar";
 import { Logo, ErrorBoundary } from "@/components/shared";
 import {
   LayoutDashboard,
@@ -287,10 +288,12 @@ export default function DashboardLayout({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                    {usageStats?.planName?.charAt(0) || 'U'}
-                  </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
+                  <img
+                    src={getAvatarUrl(apiKey || "user", "bottts")}
+                    alt="User avatar"
+                    className="h-7 w-7 rounded-full"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
