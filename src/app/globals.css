@@ -168,28 +168,12 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  html.landing-page::before,
-  html.landing-page::after {
-    content: "";
-    position: fixed !important;
-    width: 500px;
-    height: 500px;
-    border-radius: 50%;
-    filter: blur(100px);
-    pointer-events: none;
-    z-index: 10;
-  }
-  html.landing-page::before {
-    top: -150px;
-    right: -150px;
-    background: var(--primary);
-    opacity: 0.2;
-  }
-  html.landing-page::after {
-    bottom: -150px;
-    left: -150px;
-    background: var(--primary);
-    opacity: 0.1;
+  html.landing-page {
+    background:
+      radial-gradient(ellipse 600px 600px at top right, color-mix(in srgb, var(--primary) 15%, transparent), transparent),
+      radial-gradient(ellipse 600px 600px at bottom left, color-mix(in srgb, var(--primary) 10%, transparent), transparent),
+      var(--background);
+    background-attachment: fixed;
   }
 }
 
