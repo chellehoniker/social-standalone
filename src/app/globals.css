@@ -170,6 +170,31 @@
   }
 }
 
+/* Landing page gradient orbs - fixed to viewport */
+.landing-gradients::before,
+.landing-gradients::after {
+  content: "";
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-gradients::before {
+  top: -150px;
+  right: -150px;
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.landing-gradients::after {
+  bottom: -150px;
+  left: -150px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
 @layer utilities {
   .hover-lift {
     @apply transition-transform duration-200 hover:-translate-y-0.5;
