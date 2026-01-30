@@ -96,12 +96,12 @@ export function AccountAvatar({ account, size = "md" }: AccountAvatarProps) {
     lg: "h-6 w-6 -bottom-1 -right-1",
   };
 
-  // Map badge container sizes to appropriate icon sizes for proper padding
-  const badgeIconSizes: Record<"xs" | "sm" | "md" | "lg", "xs" | "sm"> = {
-    xs: "xs",   // 12px container -> 10px icon
-    sm: "xs",   // 16px container -> 10px icon
-    md: "xs",   // 20px container -> 10px icon
-    lg: "sm",   // 24px container -> 16px icon
+  // Custom icon sizes for proper padding (~50% fill ratio)
+  const badgeIconClasses = {
+    xs: "h-1.5 w-1.5",  // 6px icon in 12px container
+    sm: "h-2 w-2",      // 8px icon in 16px container
+    md: "h-2.5 w-2.5",  // 10px icon in 20px container
+    lg: "h-3 w-3",      // 12px icon in 24px container
   };
 
   return (
@@ -124,8 +124,7 @@ export function AccountAvatar({ account, size = "md" }: AccountAvatarProps) {
       >
         <PlatformIcon
           platform={platform}
-          className="text-white"
-          size={badgeIconSizes[size]}
+          className={`text-white ${badgeIconClasses[size]}`}
         />
       </div>
     </div>
