@@ -9,13 +9,17 @@ import { useAuthStore } from "@/stores";
 function HydrationGate({ children }: { children: React.ReactNode }) {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [mounted, setMounted] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Fallback timeout - don't leave users on blank page forever
+    const timer = setTimeout(() => setTimedOut(true), 2000);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Wait for both mount and hydration to prevent flash
-  if (!mounted || !hasHydrated) {
+  // Wait for mount and (hydration OR timeout) to prevent flash
+  if (!mounted || (!hasHydrated && !timedOut)) {
     return null;
   }
 
