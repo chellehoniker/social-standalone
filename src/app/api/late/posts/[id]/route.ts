@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * GET /api/late/posts/[id]
  * Returns a single post
@@ -22,6 +20,7 @@ export async function GET(
 
   const { id } = await params;
 
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.posts.getPost({
     path: { postId: id },
   });
@@ -62,6 +61,8 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
+
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
   // First verify this post belongs to the tenant
   const { data: existingPost } = await late.posts.getPost({
@@ -107,6 +108,8 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
   // First verify this post belongs to the tenant
   const { data: existingPost } = await late.posts.getPost({

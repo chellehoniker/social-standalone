@@ -3,8 +3,6 @@ import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 import type { Platform } from "@/lib/late-api/types";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * GET /api/late/connect/[platform]
  * Gets the OAuth connect URL for a platform
@@ -27,6 +25,7 @@ export async function GET(
   const redirectUrl = searchParams.get("redirect_url") ||
     `${process.env.NEXT_PUBLIC_APP_URL}/callback`;
 
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.connect.getConnectUrl({
     path: { platform: platform as Platform },
     query: {

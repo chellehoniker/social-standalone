@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * POST /api/late/media/presign
  * Gets a presigned URL for media upload
@@ -26,6 +24,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.media.getMediaPresignedUrl({
     body: {
       filename: body.filename,

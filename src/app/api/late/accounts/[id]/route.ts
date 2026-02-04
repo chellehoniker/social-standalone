@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * DELETE /api/late/accounts/[id]
  * Disconnects an account
@@ -21,6 +19,8 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
   // First verify this account belongs to the tenant's profile
   const { data: accounts } = await late.accounts.listAccounts({

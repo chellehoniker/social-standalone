@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * GET /api/late/profiles
  * Returns the tenant's single profile
@@ -19,6 +17,7 @@ export async function GET() {
 
   const { profileId } = validation;
 
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.profiles.getProfile({
     path: { profileId },
   });
@@ -49,6 +48,7 @@ export async function PUT(request: NextRequest) {
   const { profileId } = validation;
   const body = await request.json();
 
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.profiles.updateProfile({
     path: { profileId },
     body: {

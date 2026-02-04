@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
-const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-
 /**
  * POST /api/late/posts/[id]/retry
  * Retries a failed post
@@ -21,6 +19,8 @@ export async function POST(
   }
 
   const { id } = await params;
+
+  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
   // First verify this post belongs to the tenant
   const { data: existingPost } = await late.posts.getPost({
