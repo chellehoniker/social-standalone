@@ -35,6 +35,15 @@ export async function GET(request: Request) {
 
       const existingProfile = profileData as ProfileData | null;
 
+      // Check if user is a grandfathered StorytellerOS subscriber
+      const { data: grandfatheredData } = await serviceClient
+        .from("grandfathered_users")
+        .select("getlate_profile_id")
+        .eq("email", data.user.email!)
+        .single();
+
+      const grandfathered = grandfatheredData as { getlate_profile_id: string } | null;
+
       if (existingProfile) {
         // If the profile ID doesn't match the auth user ID, we need to migrate it
         if (existingProfile.id !== data.user.id) {
@@ -45,25 +54,36 @@ export async function GET(request: Request) {
             .eq("id", existingProfile.id);
 
           // Create new profile with correct auth user ID, preserving all data
+          // If grandfathered, override with active status and their GetLate profile
           await serviceClient.from("profiles").insert({
             id: data.user.id,
             email: existingProfile.email,
             stripe_customer_id: existingProfile.stripe_customer_id,
-            getlate_profile_id: existingProfile.getlate_profile_id,
-            subscription_status: existingProfile.subscription_status,
+            getlate_profile_id: grandfathered?.getlate_profile_id || existingProfile.getlate_profile_id,
+            subscription_status: grandfathered ? "active" : existingProfile.subscription_status,
             subscription_id: existingProfile.subscription_id,
             price_id: existingProfile.price_id,
             current_period_end: existingProfile.current_period_end,
           } as never);
+        } else if (grandfathered) {
+          // Profile exists with correct ID but user is grandfathered - update status
+          await serviceClient
+            .from("profiles")
+            .update({
+              subscription_status: "active",
+              getlate_profile_id: grandfathered.getlate_profile_id,
+            } as never)
+            .eq("id", data.user.id);
         }
-        // If IDs match, profile is already correctly linked
+        // If IDs match and not grandfathered, profile is already correctly linked
       } else {
-        // No profile exists yet - create one (user might have logged in without paying)
-        // They'll be redirected to pricing by middleware
+        // No profile exists yet - create one
+        // If grandfathered, give them active status; otherwise they'll be redirected to pricing
         await serviceClient.from("profiles").upsert({
           id: data.user.id,
           email: data.user.email!,
-          subscription_status: "inactive",
+          subscription_status: grandfathered ? "active" : "inactive",
+          getlate_profile_id: grandfathered?.getlate_profile_id || null,
         } as never);
       }
 
