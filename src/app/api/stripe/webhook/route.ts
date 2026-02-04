@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
 /**
  * Find an existing GetLate profile that matches the user's email.
  * Checks profile name against email prefix (e.g., "john" for "john@example.com")
@@ -48,6 +46,7 @@ async function findExistingGetLateProfile(
 }
 
 export async function POST(request: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
