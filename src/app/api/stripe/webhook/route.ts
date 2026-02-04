@@ -5,6 +5,49 @@ import Late from "@getlatedev/node";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+/**
+ * Find an existing GetLate profile that matches the user's email.
+ * Checks profile name against email prefix (e.g., "john" for "john@example.com")
+ * Also checks if the profile name contains the email or vice versa.
+ */
+async function findExistingGetLateProfile(
+  late: Late,
+  email: string
+): Promise<string | null> {
+  try {
+    const { data } = await late.profiles.listProfiles();
+    const profiles = data?.profiles || [];
+
+    const emailPrefix = email.split("@")[0].toLowerCase();
+    const emailLower = email.toLowerCase();
+
+    // Look for exact match on name = email prefix
+    for (const profile of profiles) {
+      const profileName = (profile.name || "").toLowerCase();
+
+      // Exact match on email prefix
+      if (profileName === emailPrefix) {
+        return profile._id;
+      }
+
+      // Profile name contains email or email prefix
+      if (profileName.includes(emailPrefix) || profileName.includes(emailLower)) {
+        return profile._id;
+      }
+
+      // Email contains profile name (for cases like profile "john.doe" and email "john.doe@example.com")
+      if (emailPrefix.includes(profileName) && profileName.length > 2) {
+        return profile._id;
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Error listing GetLate profiles:", e);
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
@@ -45,25 +88,33 @@ export async function POST(request: NextRequest) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const subscriptionItem = subscription.items.data[0];
 
-        // Create GetLate profile using master key
-        let getlateProfileId: string | null = null;
-        try {
-          const late = new Late({ apiKey: process.env.LATE_API_KEY! });
-          const { data: profileData, error: lateError } =
-            await late.profiles.createProfile({
-              body: { name: email.split("@")[0] },
-            });
+        // Initialize Late client
+        const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
-          if (lateError) {
-            console.error("Failed to create GetLate profile:", lateError);
-          } else {
-            getlateProfileId = profileData?.profile?._id || null;
+        // First, check if user already has a GetLate profile
+        let getlateProfileId = await findExistingGetLateProfile(late, email);
+
+        // Only create a new profile if one doesn't exist
+        if (!getlateProfileId) {
+          try {
+            const { data: profileData, error: lateError } =
+              await late.profiles.createProfile({
+                body: { name: email.split("@")[0] },
+              });
+
+            if (lateError) {
+              console.error("Failed to create GetLate profile:", lateError);
+            } else {
+              getlateProfileId = profileData?.profile?._id || null;
+            }
+          } catch (e) {
+            console.error("GetLate API error:", e);
           }
-        } catch (e) {
-          console.error("GetLate API error:", e);
+        } else {
+          console.log(`Found existing GetLate profile for ${email}: ${getlateProfileId}`);
         }
 
-        // Check if profile exists (by email)
+        // Check if Supabase profile exists (by email)
         const { data: existingProfileData } = await supabase
           .from("profiles")
           .select("id")
