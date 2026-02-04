@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { clientEnv } from "@/lib/env";
+import { createLogger } from "@/lib/api/logger";
+
+const logger = createLogger("auth-callback");
 
 interface ProfileData {
   id: string;
@@ -26,7 +29,19 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error && data.user) {
+    if (error) {
+      logger.error(error, { step: "exchangeCodeForSession", code: code.substring(0, 10) + "..." });
+      return NextResponse.redirect(`${appUrl}/login?error=auth_failed&reason=exchange`);
+    }
+
+    if (!data.user) {
+      logger.warn("No user returned from exchangeCodeForSession", { code: code.substring(0, 10) + "..." });
+      return NextResponse.redirect(`${appUrl}/login?error=auth_failed&reason=no_user`);
+    }
+
+    logger.info("Auth successful", { userId: data.user.id, email: data.user.email });
+
+    try {
       // Use service client to update profile (bypass RLS)
       const serviceClient = createServiceClient();
 
@@ -91,10 +106,16 @@ export async function GET(request: Request) {
         } as never);
       }
 
+      logger.info("Profile setup complete", { userId: data.user.id });
+      return NextResponse.redirect(`${appUrl}${next}`);
+    } catch (profileError) {
+      logger.error(profileError, { step: "profile_setup", userId: data.user.id, email: data.user.email });
+      // Still redirect to dashboard - auth succeeded, profile error can be handled later
       return NextResponse.redirect(`${appUrl}${next}`);
     }
   }
 
-  // Auth error - redirect to login with error
-  return NextResponse.redirect(`${appUrl}/login?error=auth_failed`);
+  // No code provided
+  logger.warn("No code in callback URL");
+  return NextResponse.redirect(`${appUrl}/login?error=auth_failed&reason=no_code`);
 }
