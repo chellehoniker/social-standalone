@@ -77,7 +77,7 @@ export function useConnectAccount() {
     mutationFn: async ({ platform }: { platform: Platform }) => {
       if (!isAuthenticated) throw new Error("Not authenticated");
 
-      const redirectUrl = `${window.location.origin}/callback`;
+      const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/callback`;
       const response = await fetch(
         `/api/late/connect/${platform}?redirect_url=${encodeURIComponent(redirectUrl)}`
       );
