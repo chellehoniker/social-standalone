@@ -47,7 +47,7 @@ services:
         scope: RUN_TIME
         type: SECRET
 
-      # Application URL (set by Digital Ocean)
+      # Application URL
       - key: NEXT_PUBLIC_APP_URL
         scope: RUN_AND_BUILD_TIME
-        value: ${APP_URL}
+        value: https://authorautomations.social
