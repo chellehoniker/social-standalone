@@ -93,12 +93,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match all dashboard routes
+    // Only match specific routes that need auth protection
     "/dashboard/:path*",
-    // Match auth pages
     "/login",
     "/signup",
-    // Exclude static files and API routes (except those that need protection)
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
