@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
@@ -13,10 +13,21 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
+interface AuthContextValue extends AuthState {
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  getlateProfileId: string | null | undefined;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
 /**
- * Hook to manage Supabase authentication state
+ * AuthProvider - Single source of truth for auth state
+ *
+ * This provider initializes auth ONCE at the app level.
+ * All components using useAuth() share the same state.
  */
-export function useAuth() {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     session: null,
@@ -25,10 +36,10 @@ export function useAuth() {
     isAuthenticated: false,
   });
 
-  // Memoize the client - createClient() returns singleton but useMemo ensures stable reference
+  // Singleton Supabase client
   const supabase = useMemo(() => createClient(), []);
 
-  // Initialize auth state - run once on mount
+  // Initialize auth state - runs ONCE at app level
   useEffect(() => {
     let isMounted = true;
 
@@ -40,34 +51,25 @@ export function useAuth() {
         .single();
 
       if (error) {
-        console.error("Failed to fetch profile:", error);
+        console.error("[AuthProvider] Failed to fetch profile:", error);
         return null;
       }
       return data;
     };
 
     const initAuth = async () => {
-      console.log("[useAuth] initAuth starting...");
       try {
-        console.log("[useAuth] calling getSession...");
         const { data, error: sessionError } = await supabase.auth.getSession();
         const session = data?.session;
-        console.log("[useAuth] getSession result:", {
-          hasData: !!data,
-          hasSession: !!session,
-          userId: session?.user?.id,
-          error: sessionError?.message
-        });
 
-        if (!isMounted) {
-          console.log("[useAuth] component unmounted, aborting");
-          return;
+        if (sessionError) {
+          console.error("[AuthProvider] getSession error:", sessionError);
         }
 
+        if (!isMounted) return;
+
         if (session?.user) {
-          console.log("[useAuth] fetching profile for user:", session.user.id);
           const profile = await fetchProfile(session.user.id);
-          console.log("[useAuth] profile result:", profile);
           if (!isMounted) return;
           setState({
             user: session.user,
@@ -76,9 +78,7 @@ export function useAuth() {
             isLoading: false,
             isAuthenticated: true,
           });
-          console.log("[useAuth] state set to authenticated");
         } else {
-          console.log("[useAuth] no session, setting unauthenticated");
           setState({
             user: null,
             session: null,
@@ -88,7 +88,7 @@ export function useAuth() {
           });
         }
       } catch (err) {
-        console.error("[useAuth] initAuth error:", err);
+        console.error("[AuthProvider] initAuth error:", err);
         if (isMounted) {
           setState({
             user: null,
@@ -103,7 +103,7 @@ export function useAuth() {
 
     initAuth();
 
-    // Listen for auth changes
+    // Single subscription for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
@@ -163,12 +163,34 @@ export function useAuth() {
     }
   }, [state.user, supabase]);
 
-  return {
+  const value: AuthContextValue = {
     ...state,
     signOut,
     refreshProfile,
     getlateProfileId: state.profile?.getlate_profile_id,
   };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+/**
+ * Hook to access auth state from the AuthContext
+ *
+ * All components using this hook share the same auth state.
+ * Auth is initialized once by AuthProvider, not per-component.
+ */
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+
+  return context;
 }
 
 /**

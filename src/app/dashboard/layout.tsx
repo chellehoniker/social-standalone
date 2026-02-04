@@ -81,9 +81,7 @@ export default function DashboardLayout({
   };
 
   // Don't render until loaded to avoid flash
-  console.log("[DashboardLayout] render check:", { isLoading, isAuthenticated, user: !!user, profile: !!profile });
   if (isLoading || !isAuthenticated) {
-    console.log("[DashboardLayout] returning null - waiting for auth");
     return null;
   }
 

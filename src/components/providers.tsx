@@ -4,24 +4,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { useState, useEffect } from "react";
-import { useAuthStore } from "@/stores";
+import { AuthProvider } from "@/hooks/use-auth";
 
-function HydrationGate({ children }: { children: React.ReactNode }) {
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+function MountGate({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Fallback timeout - don't leave users on blank page forever
-    const timer = setTimeout(() => setTimedOut(true), 2000);
-    return () => clearTimeout(timer);
   }, []);
 
-  // Wait for mount and (hydration OR timeout) to prevent flash
-  console.log("[HydrationGate] render check:", { mounted, hasHydrated, timedOut });
-  if (!mounted || (!hasHydrated && !timedOut)) {
-    console.log("[HydrationGate] returning null - waiting for hydration");
+  // Wait for client-side mount to prevent hydration mismatch
+  if (!mounted) {
     return null;
   }
 
@@ -49,7 +42,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <HydrationGate>{children}</HydrationGate>
+        <MountGate>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </MountGate>
         <Toaster position="top-right" richColors closeButton />
       </ThemeProvider>
     </QueryClientProvider>
