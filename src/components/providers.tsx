@@ -19,7 +19,9 @@ function HydrationGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Wait for mount and (hydration OR timeout) to prevent flash
+  console.log("[HydrationGate] render check:", { mounted, hasHydrated, timedOut });
   if (!mounted || (!hasHydrated && !timedOut)) {
+    console.log("[HydrationGate] returning null - waiting for hydration");
     return null;
   }
 

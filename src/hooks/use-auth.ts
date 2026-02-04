@@ -47,12 +47,16 @@ export function useAuth() {
     };
 
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log("[useAuth] initAuth starting...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("[useAuth] getSession result:", { session: !!session, userId: session?.user?.id, error: sessionError });
 
       if (!isMounted) return;
 
       if (session?.user) {
+        console.log("[useAuth] fetching profile for user:", session.user.id);
         const profile = await fetchProfile(session.user.id);
+        console.log("[useAuth] profile result:", profile);
         if (!isMounted) return;
         setState({
           user: session.user,
@@ -61,7 +65,9 @@ export function useAuth() {
           isLoading: false,
           isAuthenticated: true,
         });
+        console.log("[useAuth] state set to authenticated");
       } else {
+        console.log("[useAuth] no session, setting unauthenticated");
         setState({
           user: null,
           session: null,
