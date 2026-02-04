@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
 /**
@@ -24,6 +23,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { default: Late } = await import("@getlatedev/node");
   const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.media.getMediaPresignedUrl({
     body: {

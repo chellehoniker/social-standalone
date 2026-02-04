@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
 /**
@@ -21,6 +20,7 @@ export async function DELETE(
   const { profileId } = validation;
   const { id } = await params;
 
+  const { default: Late } = await import("@getlatedev/node");
   const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { error } = await late.queue.deleteQueueSlot({
     query: {

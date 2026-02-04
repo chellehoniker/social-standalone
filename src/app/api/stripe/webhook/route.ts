@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceClient } from "@/lib/supabase/server";
-import Late from "@getlatedev/node";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -11,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
  * Also checks if the profile name contains the email or vice versa.
  */
 async function findExistingGetLateProfile(
-  late: Late,
+  late: InstanceType<typeof import("@getlatedev/node").default>,
   email: string
 ): Promise<string | null> {
   try {
@@ -88,7 +87,8 @@ export async function POST(request: NextRequest) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const subscriptionItem = subscription.items.data[0];
 
-        // Initialize Late client
+        // Initialize Late client (dynamic import to avoid build-time env var check)
+        const { default: Late } = await import("@getlatedev/node");
         const late = new Late({ apiKey: process.env.LATE_API_KEY! });
 
         // First, check if user already has a GetLate profile

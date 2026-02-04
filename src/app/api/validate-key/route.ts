@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Late from "@getlatedev/node";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +18,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { default: Late } = await import("@getlatedev/node");
     const late = new Late({ apiKey });
     const { data, error } = await late.usage.getUsageStats();
 

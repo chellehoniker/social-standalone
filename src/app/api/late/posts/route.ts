@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Late from "@getlatedev/node";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 
 /**
@@ -18,6 +17,7 @@ export async function GET(request: NextRequest) {
   const { profileId } = validation;
   const searchParams = request.nextUrl.searchParams;
 
+  const { default: Late } = await import("@getlatedev/node");
   const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.posts.listPosts({
     query: {
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
   const { profileId } = validation;
   const body = await request.json();
 
+  const { default: Late } = await import("@getlatedev/node");
   const late = new Late({ apiKey: process.env.LATE_API_KEY! });
   const { data, error } = await late.posts.createPost({
     body: {
