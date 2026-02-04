@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import Late from "@getlatedev/node";
-import { useAuthStore } from "@/stores";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -30,15 +29,13 @@ interface EntityData {
 export function CallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { apiKey } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuth();
 
   const [step, setStep] = useState<CallbackStep>("processing");
   const [error, setError] = useState<string | null>(null);
   const [entityData, setEntityData] = useState<EntityData | null>(null);
 
   const handleEntitySelection = useCallback(async (platform: string, stepType: string) => {
-    if (!apiKey) return;
-    const late = new Late({ apiKey });
     const tempToken = searchParams.get("tempToken");
     const userProfile = searchParams.get("userProfile");
     const connectToken = searchParams.get("connect_token");
@@ -47,44 +44,19 @@ export function CallbackClient() {
     try {
       let entities: Entity[] = [];
 
-      switch (platform) {
-        case "facebook":
-          if (stepType === "select_page") {
-            const { data } = await late.connect.facebook.listFacebookPages({
-              headers: { "X-Connect-Token": connectToken || "" },
-            });
-            entities = (data?.pages || []) as Entity[];
-          }
-          break;
+      // Fetch entities via API routes
+      const baseParams = new URLSearchParams({
+        platform,
+        stepType,
+        ...(tempToken && { tempToken }),
+        ...(connectToken && { connectToken }),
+        ...(pendingDataToken && { pendingDataToken }),
+      });
 
-        case "linkedin":
-          if (stepType === "select_organization" && pendingDataToken) {
-            const { data } = await late.connect.getPendingOAuthData({
-              query: { token: pendingDataToken },
-            });
-            entities = (data?.organizations || []) as Entity[];
-          }
-          break;
-
-        case "pinterest":
-          if (stepType === "select_board") {
-            const { data } = await late.connect.pinterest.listPinterestBoardsForSelection({
-              query: { tempToken: tempToken || "" },
-              headers: { "X-Connect-Token": connectToken || "" },
-            });
-            entities = (data?.boards || []) as Entity[];
-          }
-          break;
-
-        case "googlebusiness":
-          if (stepType === "select_location") {
-            const { data } = await late.connect.googleBusiness.listGoogleBusinessLocations({
-              query: { tempToken: tempToken || "" },
-              headers: { "X-Connect-Token": connectToken || "" },
-            });
-            entities = (data?.locations || []) as Entity[];
-          }
-          break;
+      const response = await fetch(`/api/late/connect/entities?${baseParams}`);
+      if (response.ok) {
+        const data = await response.json();
+        entities = data.entities || [];
       }
 
       setEntityData({
@@ -101,7 +73,7 @@ export function CallbackClient() {
       setError("Failed to load options. Please try again.");
       setStep("error");
     }
-  }, [apiKey, searchParams]);
+  }, [searchParams]);
 
   const handleCallback = useCallback(async () => {
     try {
@@ -142,66 +114,36 @@ export function CallbackClient() {
   }, [searchParams, router, handleEntitySelection]);
 
   useEffect(() => {
-    if (!apiKey) {
+    if (isLoading) return;
+    if (!isAuthenticated) {
       router.push("/");
       return;
     }
     handleCallback();
-  }, [apiKey, router, handleCallback]);
+  }, [isAuthenticated, isLoading, router, handleCallback]);
 
   const handleEntitySelect = async (entityId: string) => {
-    if (!entityData || !apiKey) return;
+    if (!entityData) return;
 
     setStep("processing");
-    const late = new Late({ apiKey });
 
     try {
       const profileId = searchParams.get("profileId") || "";
 
-      switch (entityData.platform) {
-        case "facebook":
-          await late.connect.facebook.selectFacebookPage({
-            body: {
-              tempToken: entityData.tempToken!,
-              userProfile: entityData.userProfile!,
-              pageId: entityId,
-              profileId,
-            },
-          });
-          break;
+      const response = await fetch("/api/late/connect/select-entity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: entityData.platform,
+          entityId,
+          profileId,
+          tempToken: entityData.tempToken,
+          userProfile: entityData.userProfile,
+        }),
+      });
 
-        case "linkedin":
-          await late.connect.linkedin.selectLinkedInOrganization({
-            body: {
-              tempToken: entityData.tempToken!,
-              userProfile: entityData.userProfile!,
-              organizationId: entityId,
-              profileId,
-            },
-          });
-          break;
-
-        case "pinterest":
-          await late.connect.pinterest.selectPinterestBoard({
-            body: {
-              tempToken: entityData.tempToken!,
-              userProfile: entityData.userProfile!,
-              boardId: entityId,
-              profileId,
-            },
-          });
-          break;
-
-        case "googlebusiness":
-          await late.connect.googleBusiness.selectGoogleBusinessLocation({
-            body: {
-              tempToken: entityData.tempToken!,
-              userProfile: entityData.userProfile!,
-              locationId: entityId,
-              profileId,
-            },
-          });
-          break;
+      if (!response.ok) {
+        throw new Error("Failed to select entity");
       }
 
       setStep("success");

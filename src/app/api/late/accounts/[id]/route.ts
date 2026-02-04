@@ -28,7 +28,7 @@ export async function DELETE(
   });
 
   const accountBelongsToTenant = accounts?.accounts?.some(
-    (acc) => acc._id === id
+    (acc: { _id: string }) => acc._id === id
   );
 
   if (!accountBelongsToTenant) {

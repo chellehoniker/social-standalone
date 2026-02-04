@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
 
         // Get subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscriptionItem = subscription.items.data[0];
 
         // Create GetLate profile using master key
         let getlateProfileId: string | null = null;
@@ -63,11 +64,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if profile exists (by email)
-        const { data: existingProfile } = await supabase
+        const { data: existingProfileData } = await supabase
           .from("profiles")
           .select("id")
           .eq("email", email)
           .single();
+
+        const existingProfile = existingProfileData as { id: string } | null;
 
         if (existingProfile) {
           // Update existing profile
@@ -77,12 +80,12 @@ export async function POST(request: NextRequest) {
               stripe_customer_id: customerId,
               subscription_id: subscriptionId,
               subscription_status: "active",
-              price_id: subscription.items.data[0].price.id,
+              price_id: subscriptionItem.price.id,
               current_period_end: new Date(
-                subscription.current_period_end * 1000
+                subscriptionItem.current_period_end * 1000
               ).toISOString(),
               getlate_profile_id: getlateProfileId || existingProfile.id,
-            })
+            } as never)
             .eq("email", email);
         } else {
           // Create placeholder profile (will be linked when user authenticates)
@@ -94,12 +97,12 @@ export async function POST(request: NextRequest) {
             stripe_customer_id: customerId,
             subscription_id: subscriptionId,
             subscription_status: "active",
-            price_id: subscription.items.data[0].price.id,
+            price_id: subscriptionItem.price.id,
             current_period_end: new Date(
-              subscription.current_period_end * 1000
+              subscriptionItem.current_period_end * 1000
             ).toISOString(),
             getlate_profile_id: getlateProfileId,
-          });
+          } as never);
         }
         break;
       }
@@ -107,6 +110,7 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
+        const subscriptionItem = subscription.items.data[0];
 
         const status =
           subscription.status === "active"
@@ -120,10 +124,10 @@ export async function POST(request: NextRequest) {
           .update({
             subscription_status: status,
             current_period_end: new Date(
-              subscription.current_period_end * 1000
+              subscriptionItem.current_period_end * 1000
             ).toISOString(),
-            price_id: subscription.items.data[0].price.id,
-          })
+            price_id: subscriptionItem.price.id,
+          } as never)
           .eq("stripe_customer_id", customerId);
         break;
       }
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest) {
           .update({
             subscription_status: "canceled",
             subscription_id: null,
-          })
+          } as never)
           .eq("stripe_customer_id", customerId);
         break;
       }
@@ -150,7 +154,7 @@ export async function POST(request: NextRequest) {
           .from("profiles")
           .update({
             subscription_status: "past_due",
-          })
+          } as never)
           .eq("stripe_customer_id", customerId);
         break;
       }

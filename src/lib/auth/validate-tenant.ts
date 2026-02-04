@@ -35,11 +35,13 @@ export async function validateTenant(): Promise<
   }
 
   // 2. Get user's profile (tenant record)
-  const { data: profile, error: profileError } = await supabase
+  const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
+
+  const profile = profileData as Profile | null;
 
   if (profileError || !profile) {
     return { error: "Profile not found", status: 404 };

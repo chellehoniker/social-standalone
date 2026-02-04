@@ -18,11 +18,13 @@ export async function POST() {
     }
 
     // Get user's profile with Stripe customer ID
-    const { data: profile, error: profileError } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("stripe_customer_id")
       .eq("id", user.id)
       .single();
+
+    const profile = profileData as { stripe_customer_id: string | null } | null;
 
     if (profileError || !profile?.stripe_customer_id) {
       return NextResponse.json(
