@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { requireServerEnv } from "@/lib/env";
+import { notFound } from "@/lib/api/errors";
 
 export async function GET(request: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(requireServerEnv("stripeSecretKey"));
   const sessionId = request.nextUrl.searchParams.get("id");
 
   if (!sessionId) {
@@ -19,11 +21,7 @@ export async function GET(request: NextRequest) {
       email: session.customer_email || session.metadata?.email,
       status: session.payment_status,
     });
-  } catch (error) {
-    console.error("Failed to retrieve session:", error);
-    return NextResponse.json(
-      { error: "Session not found" },
-      { status: 404 }
-    );
+  } catch {
+    return notFound("Session");
   }
 }

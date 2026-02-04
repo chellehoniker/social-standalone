@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./types";
+import { clientEnv, requireServerEnv } from "@/lib/env";
 
 /**
  * Creates a Supabase client for server-side usage (API routes, server components)
@@ -10,8 +11,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    clientEnv.supabaseUrl,
+    clientEnv.supabaseAnonKey,
     {
       cookies: {
         get(name: string) {
@@ -45,8 +46,8 @@ export async function createClient() {
  */
 export function createServiceClient() {
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    clientEnv.supabaseUrl,
+    requireServerEnv("supabaseServiceRoleKey"),
     {
       cookies: {
         get: () => undefined,

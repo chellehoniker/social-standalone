@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
+import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
+import { jsonWithCache, CacheDuration } from "@/lib/api/cache";
 
 /**
  * GET /api/late/accounts
@@ -8,6 +11,8 @@ import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 export async function GET() {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -16,18 +21,14 @@ export async function GET() {
 
   const { profileId } = validation;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.accounts.listAccounts({
     query: { profileId },
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch accounts" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
-  return NextResponse.json(data);
+  return jsonWithCache(data, CacheDuration.SHORT);
 }

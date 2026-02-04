@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
 import type { Platform } from "@/lib/late-api/types";
 
 /**
@@ -24,8 +25,7 @@ export async function GET(
   const redirectUrl = searchParams.get("redirect_url") ||
     `${process.env.NEXT_PUBLIC_APP_URL}/callback`;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.connect.getConnectUrl({
     path: { platform: platform as Platform },
     query: {

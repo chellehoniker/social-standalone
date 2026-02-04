@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
+import { unauthorized, forbidden, notFound, badGateway } from "@/lib/api/errors";
+import { lateGuards } from "@/lib/type-guards";
 
 /**
  * DELETE /api/late/accounts/[id]
@@ -11,6 +14,8 @@ export async function DELETE(
 ) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -19,8 +24,7 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
 
   // First verify this account belongs to the tenant's profile
   const { data: accounts } = await late.accounts.listAccounts({
@@ -28,14 +32,11 @@ export async function DELETE(
   });
 
   const accountBelongsToTenant = accounts?.accounts?.some(
-    (acc: { _id: string }) => acc._id === id
+    (acc: unknown) => lateGuards.isAccount(acc) && acc._id === id
   );
 
   if (!accountBelongsToTenant) {
-    return NextResponse.json(
-      { error: "Account not found" },
-      { status: 404 }
-    );
+    return notFound("Account");
   }
 
   const { error } = await late.accounts.deleteAccount({
@@ -43,10 +44,7 @@ export async function DELETE(
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to delete account" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
   return NextResponse.json({ success: true });

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireServerEnv } from "@/lib/env";
+import { getLateClient, type LateClient } from "@/lib/late-api";
+import { createLogger } from "@/lib/api/logger";
+import { badRequest, serverError } from "@/lib/api/errors";
+
+const logger = createLogger("stripe-webhook");
 
 /**
  * Find an existing GetLate profile that matches the user's email.
@@ -8,7 +14,7 @@ import { createServiceClient } from "@/lib/supabase/server";
  * Also checks if the profile name contains the email or vice versa.
  */
 async function findExistingGetLateProfile(
-  late: InstanceType<typeof import("@getlatedev/node").default>,
+  late: LateClient,
   email: string
 ): Promise<string | null> {
   try {
@@ -40,13 +46,13 @@ async function findExistingGetLateProfile(
 
     return null;
   } catch (e) {
-    console.error("Error listing GetLate profiles:", e);
+    logger.error(e, { action: "listProfiles", email });
     return null;
   }
 }
 
 export async function POST(request: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(requireServerEnv("stripeSecretKey"));
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
@@ -60,11 +66,11 @@ export async function POST(request: NextRequest) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      requireServerEnv("stripeWebhookSecret")
     );
   } catch (err) {
-    console.error("Webhook signature verification failed:", err);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    logger.warn("Webhook signature verification failed", { error: String(err) });
+    return badRequest("Invalid signature");
   }
 
   const supabase = createServiceClient();
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
         const subscriptionId = session.subscription as string;
 
         if (!email) {
-          console.error("No email in checkout session");
+          logger.warn("No email in checkout session", { sessionId: session.id });
           break;
         }
 
@@ -86,9 +92,8 @@ export async function POST(request: NextRequest) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const subscriptionItem = subscription.items.data[0];
 
-        // Initialize Late client (dynamic import to avoid build-time env var check)
-        const { default: Late } = await import("@getlatedev/node");
-        const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+        // Get Late client singleton
+        const late = await getLateClient();
 
         // First, check if user already has a GetLate profile
         let getlateProfileId = await findExistingGetLateProfile(late, email);
@@ -102,15 +107,15 @@ export async function POST(request: NextRequest) {
               });
 
             if (lateError) {
-              console.error("Failed to create GetLate profile:", lateError);
+              logger.error(lateError, { action: "createProfile", email });
             } else {
               getlateProfileId = profileData?.profile?._id || null;
             }
           } catch (e) {
-            console.error("GetLate API error:", e);
+            logger.error(e, { action: "createProfile", email });
           }
         } else {
-          console.log(`Found existing GetLate profile for ${email}: ${getlateProfileId}`);
+          logger.info(`Found existing GetLate profile`, { email, profileId: getlateProfileId });
         }
 
         // Check if Supabase profile exists (by email)
@@ -212,10 +217,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook handler error:", error);
-    return NextResponse.json(
-      { error: "Webhook handler failed" },
-      { status: 500 }
-    );
+    return serverError(error, { eventType: event.type });
   }
 }

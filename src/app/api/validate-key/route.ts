@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { badRequest, unauthorized, serverError } from "@/lib/api/errors";
 
 export async function POST(request: NextRequest) {
   try {
     const { apiKey } = await request.json();
 
     if (!apiKey || typeof apiKey !== "string") {
-      return NextResponse.json(
-        { error: "API key is required" },
-        { status: 400 }
-      );
+      return badRequest("API key is required");
     }
 
     if (!apiKey.startsWith("sk_")) {
-      return NextResponse.json(
-        { error: "Invalid API key format" },
-        { status: 400 }
-      );
+      return badRequest("Invalid API key format");
     }
 
     const { default: Late } = await import("@getlatedev/node");
@@ -23,18 +18,11 @@ export async function POST(request: NextRequest) {
     const { data, error } = await late.usage.getUsageStats();
 
     if (error || !data) {
-      return NextResponse.json(
-        { error: "Invalid API key" },
-        { status: 401 }
-      );
+      return unauthorized("Invalid API key");
     }
 
     return NextResponse.json({ data });
   } catch (err) {
-    console.error("API key validation error:", err);
-    return NextResponse.json(
-      { error: "Failed to validate API key" },
-      { status: 500 }
-    );
+    return serverError(err, { action: "validateApiKey" });
   }
 }

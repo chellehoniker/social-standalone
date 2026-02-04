@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
+import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
+import { parseRequestBody, PresignRequestSchema } from "@/lib/validations";
 
 /**
  * POST /api/late/media/presign
@@ -8,35 +11,27 @@ import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 export async function POST(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
     );
   }
 
-  const body = await request.json();
+  const parsed = await parseRequestBody(request, PresignRequestSchema);
+  if (!parsed.success) return parsed.response;
 
-  if (!body.filename || !body.contentType) {
-    return NextResponse.json(
-      { error: "filename and contentType are required" },
-      { status: 400 }
-    );
-  }
-
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.media.getMediaPresignedUrl({
     body: {
-      filename: body.filename,
-      contentType: body.contentType,
+      filename: parsed.data.filename,
+      contentType: parsed.data.contentType,
     },
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to get presigned URL" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
   return NextResponse.json(data);

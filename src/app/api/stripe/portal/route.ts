@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { requireServerEnv, clientEnv } from "@/lib/env";
+import { serverError } from "@/lib/api/errors";
 
 export async function POST() {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(requireServerEnv("stripeSecretKey"));
 
   try {
     const supabase = await createClient();
@@ -36,15 +38,11 @@ export async function POST() {
     // Create Stripe Customer Portal session
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings`,
+      return_url: `${clientEnv.appUrl}/dashboard/settings`,
     });
 
     return NextResponse.json({ url: portalSession.url });
   } catch (error) {
-    console.error("Stripe portal error:", error);
-    return NextResponse.json(
-      { error: "Failed to create portal session" },
-      { status: 500 }
-    );
+    return serverError(error, { action: "createPortalSession" });
   }
 }

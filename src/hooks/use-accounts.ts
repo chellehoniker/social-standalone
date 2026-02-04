@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./use-auth";
 import type { Platform } from "@/lib/late-api";
+import { isPlatform } from "@/lib/type-guards";
 
 export const accountKeys = {
   all: ["accounts"] as const,
@@ -121,13 +122,14 @@ export function useAccountsByPlatform() {
   const { data, ...rest } = useAccounts();
 
   const accountsByPlatform = data?.accounts?.reduce(
-    (acc: Record<Platform, Account[]>, account: Account) => {
-      const platform = account.platform as Platform;
-      if (!acc[platform]) acc[platform] = [];
-      acc[platform].push(account);
+    (acc: Partial<Record<Platform, Account[]>>, account: Account) => {
+      if (isPlatform(account.platform)) {
+        if (!acc[account.platform]) acc[account.platform] = [];
+        acc[account.platform]!.push(account);
+      }
       return acc;
     },
-    {} as Record<Platform, Account[]>
+    {} as Partial<Record<Platform, Account[]>>
   );
 
   return { data: accountsByPlatform, accounts: data?.accounts, ...rest };

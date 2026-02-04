@@ -1,39 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { requireServerEnv, clientEnv } from "@/lib/env";
+import { parseRequestBody, CheckoutSessionSchema } from "@/lib/validations";
+import { badRequest, serverError } from "@/lib/api/errors";
 
 export async function POST(request: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(requireServerEnv("stripeSecretKey"));
+
+  const parsed = await parseRequestBody(request, CheckoutSessionSchema);
+  if (!parsed.success) return parsed.response;
+
+  const { priceId, email } = parsed.data;
+
+  // Validate price ID against allowed prices
+  const validPrices = [
+    clientEnv.stripePriceMonthly,
+    clientEnv.stripePriceAnnual,
+  ];
+  if (!validPrices.includes(priceId)) {
+    return badRequest("Invalid price selected");
+  }
 
   try {
-    const { priceId, email } = await request.json();
-
-    if (!priceId || !email) {
-      return NextResponse.json(
-        { error: "Price ID and email are required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    // Validate price ID
-    const validPrices = [
-      process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY,
-      process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL,
-    ];
-    if (!validPrices.includes(priceId)) {
-      return NextResponse.json(
-        { error: "Invalid price selected" },
-        { status: 400 }
-      );
-    }
 
     // Check if customer already exists
     const existingCustomers = await stripe.customers.list({
@@ -57,8 +45,8 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+      success_url: `${clientEnv.appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientEnv.appUrl}/pricing`,
       metadata: {
         email,
       },
@@ -67,10 +55,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Stripe checkout error:", error);
-    return NextResponse.json(
-      { error: "Failed to create checkout session" },
-      { status: 500 }
-    );
+    return serverError(error, { action: "createCheckoutSession" });
   }
 }

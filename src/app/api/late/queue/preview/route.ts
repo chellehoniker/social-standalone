@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
 
 /**
  * GET /api/late/queue/preview
@@ -20,8 +21,7 @@ export async function GET(request: NextRequest) {
     ? parseInt(searchParams.get("count")!)
     : 10;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.queue.previewQueue({
     query: {
       profileId,

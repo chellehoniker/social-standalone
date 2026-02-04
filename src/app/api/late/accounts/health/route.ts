@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
 
 /**
  * GET /api/late/accounts/health
@@ -16,8 +17,7 @@ export async function GET() {
 
   const { profileId } = validation;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.accounts.getAllAccountsHealth({
     query: { profileId },
   });

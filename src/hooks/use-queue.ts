@@ -4,9 +4,9 @@ import { useAuth } from "./use-auth";
 export const queueKeys = {
   all: ["queue"] as const,
   queues: () => ["queue", "queues"] as const,
-  slots: () => ["queue", "slots"] as const,
+  slots: (queueId?: string) => ["queue", "slots", queueId ?? "default"] as const,
   preview: (count: number) => ["queue", "preview", count] as const,
-  nextSlot: () => ["queue", "nextSlot"] as const,
+  nextSlot: (queueId?: string) => ["queue", "nextSlot", queueId ?? "default"] as const,
 };
 
 // SDK-aligned types
@@ -79,7 +79,7 @@ export function useQueueSlots(queueId?: string) {
   const { isAuthenticated, getlateProfileId } = useAuth();
 
   return useQuery({
-    queryKey: queueKeys.slots(),
+    queryKey: queueKeys.slots(queueId),
     queryFn: async () => {
       const url = queueId ? `/api/late/queue?queueId=${queueId}` : "/api/late/queue";
       const response = await fetch(url);
@@ -307,7 +307,7 @@ export function useNextQueueSlot(queueId?: string) {
   const { isAuthenticated, getlateProfileId } = useAuth();
 
   return useQuery({
-    queryKey: queueKeys.nextSlot(),
+    queryKey: queueKeys.nextSlot(queueId),
     queryFn: async () => {
       const url = queueId
         ? `/api/late/queue/next?queueId=${queueId}`

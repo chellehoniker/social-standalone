@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { getLateClient } from "@/lib/late-api";
+import { unauthorized, forbidden, badGateway, serverError } from "@/lib/api/errors";
+import { parseRequestBody, CreatePostSchema } from "@/lib/validations";
+import { jsonWithCache, CacheDuration } from "@/lib/api/cache";
 
 /**
  * GET /api/late/posts
@@ -8,6 +12,8 @@ import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 export async function GET(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -17,8 +23,7 @@ export async function GET(request: NextRequest) {
   const { profileId } = validation;
   const searchParams = request.nextUrl.searchParams;
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const late = await getLateClient();
   const { data, error } = await late.posts.listPosts({
     query: {
       profileId,
@@ -39,13 +44,10 @@ export async function GET(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch posts" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
-  return NextResponse.json(data);
+  return jsonWithCache(data, CacheDuration.SHORT);
 }
 
 /**
@@ -55,6 +57,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -62,23 +66,20 @@ export async function POST(request: NextRequest) {
   }
 
   const { profileId } = validation;
-  const body = await request.json();
 
-  const { default: Late } = await import("@getlatedev/node");
-  const late = new Late({ apiKey: process.env.LATE_API_KEY! });
+  const parsed = await parseRequestBody(request, CreatePostSchema);
+  if (!parsed.success) return parsed.response;
+
+  const late = await getLateClient();
   const { data, error } = await late.posts.createPost({
     body: {
-      ...body,
+      ...parsed.data,
       profileId,
     },
   });
 
   if (error) {
-    console.error("Failed to create post:", error);
-    return NextResponse.json(
-      { error: "Failed to create post" },
-      { status: 500 }
-    );
+    return serverError(error, { action: "createPost", profileId });
   }
 
   return NextResponse.json(data);
