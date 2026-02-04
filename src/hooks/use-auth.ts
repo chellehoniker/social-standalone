@@ -48,33 +48,56 @@ export function useAuth() {
 
     const initAuth = async () => {
       console.log("[useAuth] initAuth starting...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log("[useAuth] getSession result:", { session: !!session, userId: session?.user?.id, error: sessionError });
-
-      if (!isMounted) return;
-
-      if (session?.user) {
-        console.log("[useAuth] fetching profile for user:", session.user.id);
-        const profile = await fetchProfile(session.user.id);
-        console.log("[useAuth] profile result:", profile);
-        if (!isMounted) return;
-        setState({
-          user: session.user,
-          session,
-          profile,
-          isLoading: false,
-          isAuthenticated: true,
+      try {
+        console.log("[useAuth] calling getSession...");
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        const session = data?.session;
+        console.log("[useAuth] getSession result:", {
+          hasData: !!data,
+          hasSession: !!session,
+          userId: session?.user?.id,
+          error: sessionError?.message
         });
-        console.log("[useAuth] state set to authenticated");
-      } else {
-        console.log("[useAuth] no session, setting unauthenticated");
-        setState({
-          user: null,
-          session: null,
-          profile: null,
-          isLoading: false,
-          isAuthenticated: false,
-        });
+
+        if (!isMounted) {
+          console.log("[useAuth] component unmounted, aborting");
+          return;
+        }
+
+        if (session?.user) {
+          console.log("[useAuth] fetching profile for user:", session.user.id);
+          const profile = await fetchProfile(session.user.id);
+          console.log("[useAuth] profile result:", profile);
+          if (!isMounted) return;
+          setState({
+            user: session.user,
+            session,
+            profile,
+            isLoading: false,
+            isAuthenticated: true,
+          });
+          console.log("[useAuth] state set to authenticated");
+        } else {
+          console.log("[useAuth] no session, setting unauthenticated");
+          setState({
+            user: null,
+            session: null,
+            profile: null,
+            isLoading: false,
+            isAuthenticated: false,
+          });
+        }
+      } catch (err) {
+        console.error("[useAuth] initAuth error:", err);
+        if (isMounted) {
+          setState({
+            user: null,
+            session: null,
+            profile: null,
+            isLoading: false,
+            isAuthenticated: false,
+          });
+        }
       }
     };
 
