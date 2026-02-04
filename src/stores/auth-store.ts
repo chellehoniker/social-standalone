@@ -1,61 +1,54 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface UsageStats {
-  planName: string;
-  limits: {
-    uploads: number;
-    profiles: number;
-  };
-  usage: {
-    uploads: number;
-    profiles: number;
-  };
-}
-
+/**
+ * Auth store for app-wide authentication state.
+ * Note: Most auth state is now managed by useAuth hook with Supabase.
+ * This store is kept for backwards compatibility and hydration tracking.
+ */
 interface AuthState {
-  apiKey: string | null;
-  usageStats: UsageStats | null;
+  // Hydration state - needed to prevent flash on client-side navigation
+  hasHydrated: boolean;
+  setHasHydrated: (hydrated: boolean) => void;
+
+  // Legacy compatibility - these are now managed by useAuth hook
+  // Kept for components that may still reference them
   isValidating: boolean;
   error: string | null;
-  hasHydrated: boolean;
-  setApiKey: (key: string | null) => void;
-  setUsageStats: (stats: UsageStats | null) => void;
   setIsValidating: (validating: boolean) => void;
   setError: (error: string | null) => void;
-  setHasHydrated: (hydrated: boolean) => void;
+
+  // Clear all auth state (used on sign out)
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      apiKey: null,
-      usageStats: null,
+      hasHydrated: false,
       isValidating: false,
       error: null,
-      hasHydrated: false,
-      setApiKey: (key) => set({ apiKey: key, error: null }),
-      setUsageStats: (stats) => set({ usageStats: stats }),
+
+      setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
       setIsValidating: (validating) => set({ isValidating: validating }),
       setError: (error) => set({ error }),
-      setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
+
       logout: () =>
         set({
-          apiKey: null,
-          usageStats: null,
           error: null,
+          isValidating: false,
         }),
     }),
     {
-      name: "latewiz-auth",
-      partialize: (state) => ({
-        apiKey: state.apiKey,
-        usageStats: state.usageStats,
-      }),
+      name: "aa-social-auth",
+      partialize: () => ({}), // Don't persist anything - Supabase handles sessions
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
     }
   )
 );
+
+// Re-export for backwards compatibility
+// New code should use useAuth from hooks
+export type { AuthState };

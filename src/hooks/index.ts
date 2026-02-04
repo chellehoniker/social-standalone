@@ -1,5 +1,5 @@
-// Late client
-export { useLate, useLateClient } from "./use-late";
+// Authentication
+export { useAuth, useSubscriptionStatus } from "./use-auth";
 
 // Profiles
 export {

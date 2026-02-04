@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLate } from "./use-late";
-import { useCurrentProfileId } from "./use-profiles";
+import { useAuth } from "./use-auth";
 import type { Platform, PlatformSpecificData } from "@/lib/late-api";
 
 export const postKeys = {
@@ -11,7 +10,6 @@ export const postKeys = {
 };
 
 export interface PostFilters {
-  profileId?: string;
   status?: "draft" | "scheduled" | "publishing" | "published" | "failed";
   dateFrom?: string;
   dateTo?: string;
@@ -56,28 +54,27 @@ export interface UpdatePostInput {
  * Hook to fetch posts with filters
  */
 export function usePosts(filters: PostFilters = {}) {
-  const late = useLate();
-  const currentProfileId = useCurrentProfileId();
-  const profileId = filters.profileId || currentProfileId;
+  const { isAuthenticated, getlateProfileId } = useAuth();
+
+  const queryString = new URLSearchParams();
+  if (filters.status) queryString.set("status", filters.status);
+  if (filters.dateFrom) queryString.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) queryString.set("dateTo", filters.dateTo);
+  if (filters.page) queryString.set("page", filters.page.toString());
+  if (filters.limit) queryString.set("limit", filters.limit.toString());
 
   return useQuery({
-    queryKey: postKeys.list({ ...filters, profileId }),
+    queryKey: postKeys.list(filters),
     queryFn: async () => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.posts.listPosts({
-        query: {
-          profileId,
-          status: filters.status,
-          dateFrom: filters.dateFrom,
-          dateTo: filters.dateTo,
-          page: filters.page,
-          limit: filters.limit || 50,
-        },
-      });
-      if (error) throw error;
-      return data;
+      const url = `/api/late/posts${queryString.toString() ? `?${queryString}` : ""}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch posts");
+      }
+      return response.json();
     },
-    enabled: !!late && !!profileId,
+    enabled: isAuthenticated && !!getlateProfileId,
   });
 }
 
@@ -85,19 +82,19 @@ export function usePosts(filters: PostFilters = {}) {
  * Hook to fetch a single post
  */
 export function usePost(postId: string) {
-  const late = useLate();
+  const { isAuthenticated } = useAuth();
 
   return useQuery({
     queryKey: postKeys.detail(postId),
     queryFn: async () => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.posts.getPost({
-        path: { postId },
-      });
-      if (error) throw error;
-      return data;
+      const response = await fetch(`/api/late/posts/${postId}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch post");
+      }
+      return response.json();
     },
-    enabled: !!late && !!postId,
+    enabled: isAuthenticated && !!postId,
   });
 }
 
@@ -105,20 +102,22 @@ export function usePost(postId: string) {
  * Hook to create a post
  */
 export function useCreatePost() {
-  const late = useLate();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: CreatePostInput) => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.posts.createPost({
-        body: input,
+      const response = await fetch("/api/late/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
       });
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create post");
+      }
+      return response.json();
     },
     onSuccess: () => {
-      // Invalidate all list queries but not details (they aren't affected)
       queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
   });
@@ -128,21 +127,22 @@ export function useCreatePost() {
  * Hook to update a post
  */
 export function useUpdatePost() {
-  const late = useLate();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ postId, ...input }: UpdatePostInput) => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.posts.updatePost({
-        path: { postId },
-        body: input,
+      const response = await fetch(`/api/late/posts/${postId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
       });
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update post");
+      }
+      return response.json();
     },
     onSuccess: (_, { postId }) => {
-      // Invalidate the specific post detail and all lists (post may appear in multiple list views)
       queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
       queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
@@ -153,20 +153,20 @@ export function useUpdatePost() {
  * Hook to delete a post
  */
 export function useDeletePost() {
-  const late = useLate();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      if (!late) throw new Error("Not authenticated");
-      const { error } = await late.posts.deletePost({
-        path: { postId },
+      const response = await fetch(`/api/late/posts/${postId}`, {
+        method: "DELETE",
       });
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete post");
+      }
       return postId;
     },
     onSuccess: (postId) => {
-      // Remove the deleted post from cache and invalidate lists
       queryClient.removeQueries({ queryKey: postKeys.detail(postId) });
       queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
@@ -177,20 +177,20 @@ export function useDeletePost() {
  * Hook to retry a failed post
  */
 export function useRetryPost() {
-  const late = useLate();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.posts.retryPost({
-        path: { postId },
+      const response = await fetch(`/api/late/posts/${postId}/retry`, {
+        method: "POST",
       });
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to retry post");
+      }
+      return response.json();
     },
     onSuccess: (_, postId) => {
-      // Invalidate the specific post and all lists (status changes)
       queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
       queryClient.invalidateQueries({ queryKey: postKeys.lists() });
     },
@@ -204,7 +204,7 @@ export function useCalendarPosts(dateFrom: string, dateTo: string) {
   return usePosts({
     dateFrom,
     dateTo,
-    limit: 500, // Get more posts for calendar view
+    limit: 500,
   });
 }
 

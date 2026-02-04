@@ -16,20 +16,22 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "LateWiz - Open Source Social Media Scheduling",
+  title: "Author Automations Social - Social Media Scheduling",
   description:
-    "Your social media scheduling wizard. Schedule posts across 13 platforms with a single tool, powered by Late.",
+    "Schedule your social media posts across 13 platforms from one powerful interface. Built for authors and content creators.",
   keywords: [
     "social media scheduler",
-    "open source",
+    "author social media",
     "instagram scheduler",
     "tiktok scheduler",
     "twitter scheduler",
     "linkedin scheduler",
     "social media management",
     "content scheduling",
+    "book marketing",
+    "author platform",
   ],
-  authors: [{ name: "Late", url: "https://getlate.dev" }],
+  authors: [{ name: "Author Automations" }],
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -39,29 +41,31 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "LateWiz - Open Source Social Media Scheduling",
+    title: "Author Automations Social - Social Media Scheduling",
     description:
-      "Your social media scheduling wizard. Schedule posts across 13 platforms with a single tool.",
-    url: "https://latewiz.com",
-    siteName: "LateWiz",
+      "Schedule your social media posts across 13 platforms from one powerful interface.",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://social.authorautomations.com",
+    siteName: "Author Automations Social",
     type: "website",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "LateWiz - Open Source Social Media Scheduling",
+        alt: "Author Automations Social - Social Media Scheduling",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LateWiz - Open Source Social Media Scheduling",
+    title: "Author Automations Social - Social Media Scheduling",
     description:
-      "Your social media scheduling wizard. Schedule posts across 13 platforms with a single tool.",
+      "Schedule your social media posts across 13 platforms from one powerful interface.",
     images: ["/og-image.png"],
   },
-  metadataBase: new URL("https://latewiz.com"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://social.authorautomations.com"
+  ),
 };
 
 export default function RootLayout({

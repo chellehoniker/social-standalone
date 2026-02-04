@@ -1,5 +1,4 @@
 import { useMutation } from "@tanstack/react-query";
-import { useLate } from "./use-late";
 
 export interface UploadedMedia {
   url: string;
@@ -12,8 +11,6 @@ export interface UploadedMedia {
  * Hook to get a presigned URL for media upload
  */
 export function useMediaPresign() {
-  const late = useLate();
-
   return useMutation({
     mutationFn: async ({
       filename,
@@ -22,12 +19,16 @@ export function useMediaPresign() {
       filename: string;
       contentType: string;
     }) => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.media.getMediaPresignedUrl({
-        body: { filename, contentType },
+      const response = await fetch("/api/late/media/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, contentType }),
       });
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get presigned URL");
+      }
+      return response.json();
     },
   });
 }

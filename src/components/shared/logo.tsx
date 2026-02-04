@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
@@ -8,36 +7,49 @@ interface LogoProps {
 }
 
 const sizes = {
-  sm: { image: 24, container: "h-6 w-6" },
-  md: { image: 32, container: "h-8 w-8" },
-  lg: { image: 48, container: "h-12 w-12" },
+  sm: { icon: "h-6 w-6", text: "text-base" },
+  md: { icon: "h-8 w-8", text: "text-xl" },
+  lg: { icon: "h-12 w-12", text: "text-2xl" },
 };
 
+/**
+ * Author Automations Social Logo
+ * Uses an SVG text logo with "AA" monogram
+ */
 export function Logo({ size = "md", showText = true, className }: LogoProps) {
-  const { image, container } = sizes[size];
+  const { icon, text } = sizes[size];
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn("relative flex-shrink-0", container)}>
-        <Image
-          src="/logo.png"
-          alt="LateWiz"
-          width={image}
-          height={image}
-          className="object-contain"
-          priority
-        />
+      {/* AA Monogram */}
+      <div
+        className={cn(
+          "relative flex-shrink-0 flex items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold",
+          icon
+        )}
+      >
+        <svg
+          viewBox="0 0 32 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full p-1"
+        >
+          <text
+            x="16"
+            y="22"
+            textAnchor="middle"
+            fill="currentColor"
+            fontSize="14"
+            fontWeight="bold"
+            fontFamily="system-ui, -apple-system, sans-serif"
+          >
+            AA
+          </text>
+        </svg>
       </div>
       {showText && (
-        <span
-          className={cn(
-            "font-semibold",
-            size === "sm" && "text-base",
-            size === "md" && "text-xl",
-            size === "lg" && "text-2xl"
-          )}
-        >
-          LateWiz
+        <span className={cn("font-semibold whitespace-nowrap", text)}>
+          Author Automations
         </span>
       )}
     </div>

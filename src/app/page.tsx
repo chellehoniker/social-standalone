@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores";
+import Link from "next/link";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ApiKeyModal } from "@/components/shared/api-key-modal";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Logo } from "@/components/shared/logo";
 import { PLATFORMS, PLATFORM_NAMES } from "@/lib/late-api";
@@ -13,20 +13,18 @@ import {
   Clock,
   Image as ImageIcon,
   Share2,
-  Server,
-  Scale,
+  Zap,
+  Shield,
   ArrowRight,
   Moon,
   Sun,
-  Github,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function LandingPage() {
   const router = useRouter();
-  const { apiKey, hasHydrated } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -35,13 +33,13 @@ export default function LandingPage() {
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
-    if (hasHydrated && apiKey) {
+    if (!isLoading && isAuthenticated) {
       router.push("/dashboard");
     }
-  }, [apiKey, hasHydrated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
-  // Don't render until hydrated to avoid flash
-  if (!hasHydrated) {
+  // Don't render until mounted
+  if (!mounted || isLoading) {
     return null;
   }
 
@@ -67,58 +65,57 @@ export default function LandingPage() {
       description: "Instagram, TikTok, YouTube, X, LinkedIn & more",
     },
     {
-      icon: Server,
-      title: "Self-Hostable",
-      description: "Deploy on your own infrastructure",
+      icon: Zap,
+      title: "Quick Scheduling",
+      description: "Create and schedule posts in seconds",
     },
     {
-      icon: Scale,
-      title: "MIT Licensed",
-      description: "Free forever, no vendor lock-in",
+      icon: Shield,
+      title: "Secure & Reliable",
+      description: "Enterprise-grade security for your accounts",
     },
   ];
 
   const faqs = [
     {
-      question: "What is LateWiz?",
+      question: "What is Author Automations Social?",
       answer:
-        "LateWiz is a free, open-source social media scheduling tool built on the Late API. It lets you schedule posts across 13 platforms from a single interface.",
-    },
-    {
-      question: "Is LateWiz really free?",
-      answer:
-        "Yes! LateWiz is MIT licensed and completely free. You just need a Late API key (free tier available) to connect your social accounts.",
+        "Author Automations Social is a powerful social media scheduling tool designed for authors and content creators. Schedule posts across 13 platforms from a single interface.",
     },
     {
       question: "What platforms are supported?",
       answer:
-        "Instagram, TikTok, YouTube, X (Twitter), LinkedIn, Facebook, Pinterest, Threads, Bluesky, Snapchat, Telegram, Discord, and Slack.",
+        "Instagram, TikTok, YouTube, X (Twitter), LinkedIn, Facebook, Pinterest, Threads, Bluesky, Snapchat, Telegram, Google Business, and Reddit.",
     },
     {
-      question: "Can I self-host LateWiz?",
+      question: "How does billing work?",
       answer:
-        "Absolutely. Clone the repo, add your Late API key, and deploy anywhere - Vercel, Netlify, your own server, etc.",
-    },
-    {
-      question: "How do I get a Late API key?",
-      answer:
-        "Sign up at getlate.dev, create a project, and copy your API key. Free tier includes generous limits for personal use.",
+        "We offer monthly and annual subscription plans. You can cancel anytime from your account settings. All payments are processed securely through Stripe.",
     },
     {
       question: "Is my data secure?",
       answer:
-        "LateWiz doesn't store your social media credentials. All authentication is handled securely through the Late API using OAuth.",
+        "Yes! We use industry-standard security practices. All authentication is handled securely through OAuth, and we never store your social media passwords.",
+    },
+    {
+      question: "Can I try it before subscribing?",
+      answer:
+        "Currently we don't offer a free trial, but you can cancel your subscription within the first 7 days for a full refund if you're not satisfied.",
+    },
+    {
+      question: "How do I get support?",
+      answer:
+        "Contact us at support@authorautomations.com or through the help section in your dashboard. We typically respond within 24 hours.",
     },
   ];
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background gradient blobs - subtle on mobile, richer on desktop */}
+      {/* Background gradient blobs */}
       <div className="absolute -top-40 -right-40 z-0 w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-primary/10 md:bg-primary/30 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -left-40 z-0 w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-primary/10 md:bg-primary/25 rounded-full blur-3xl pointer-events-none" />
       <div className="hidden md:block absolute top-1/3 -left-20 z-0 w-[400px] h-[400px] bg-primary/20 rounded-full blur-3xl pointer-events-none" />
       <div className="hidden md:block absolute top-1/2 right-0 z-0 w-[350px] h-[350px] bg-primary/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="hidden md:block absolute bottom-1/3 left-1/3 z-0 w-[450px] h-[450px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
       <header className="relative z-10 border-b border-border bg-background/80 backdrop-blur-sm">
@@ -126,22 +123,18 @@ export default function LandingPage() {
           <Logo size="md" />
 
           <div className="flex items-center gap-4">
-            <a
-              href="https://getlate.dev/pricing"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/pricing"
               className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
             >
               Pricing
-            </a>
-            <a
-              href="https://github.com/getlate-dev/latewiz"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+            </Link>
+            <Link
+              href="/login"
+              className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Github className="h-5 w-5" />
-            </a>
+              Sign In
+            </Link>
             {mounted && (
               <Button
                 variant="ghost"
@@ -155,7 +148,9 @@ export default function LandingPage() {
                 )}
               </Button>
             )}
-            <Button onClick={() => setShowApiKeyModal(true)}>Get Started</Button>
+            <Button asChild>
+              <Link href="/pricing">Get Started</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -163,60 +158,52 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative z-10">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Your social media
-            <br />
-            <span className="text-primary">scheduling wizard</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Schedule posts across 13 platforms with a single, beautiful interface.
-            Open source, free to use, and powered by Late.
-          </p>
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Button size="lg" onClick={() => setShowApiKeyModal(true)}>
-              Get Started
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a
-                href="https://github.com/getlate-dev/latewiz"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Github className="mr-2 h-4 w-4" />
-                View on GitHub
-              </a>
-            </Button>
+          <div className="text-center">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+              Social media scheduling
+              <br />
+              <span className="text-primary">made simple</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+              Schedule posts across 13 platforms from one beautiful interface.
+              Built for authors, creators, and marketers who want to grow their
+              audience without the hassle.
+            </p>
+            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              <Button size="lg" asChild>
+                <Link href="/pricing">
+                  Get Started
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/login">Sign In</Link>
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {/* Platform Icons */}
-        <div className="mt-16">
-          <p className="text-center text-sm font-medium text-muted-foreground">
-            Supports 13 platforms
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-6">
-            {PLATFORMS.map((platform) => (
-              <div
-                key={platform}
-                className="flex flex-col items-center gap-2 group"
-                title={PLATFORM_NAMES[platform]}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted transition-all duration-200 group-hover:bg-accent group-hover:scale-105">
-                  <PlatformIcon
-                    platform={platform}
-                    size="lg"
-                    showColor
-                  />
+          {/* Platform Icons */}
+          <div className="mt-16">
+            <p className="text-center text-sm font-medium text-muted-foreground">
+              Supports 13 platforms
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-6">
+              {PLATFORMS.map((platform) => (
+                <div
+                  key={platform}
+                  className="flex flex-col items-center gap-2 group"
+                  title={PLATFORM_NAMES[platform]}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted transition-all duration-200 group-hover:bg-accent group-hover:scale-105">
+                    <PlatformIcon platform={platform} size="lg" showColor />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {PLATFORM_NAMES[platform]}
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {PLATFORM_NAMES[platform]}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
         </div>
       </section>
 
@@ -226,7 +213,7 @@ export default function LandingPage() {
           <div className="text-center">
             <h2 className="text-3xl font-bold">Everything you need</h2>
             <p className="mt-4 text-muted-foreground">
-              A complete scheduling solution for social media managers and marketers.
+              A complete scheduling solution for authors and content creators.
             </p>
           </div>
 
@@ -270,37 +257,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Open Source Section */}
+      {/* CTA Section */}
       <section className="relative z-10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-border bg-card p-8 text-center sm:p-12">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Github className="h-8 w-8" />
-            </div>
-            <h2 className="mt-6 text-2xl font-bold">Open Source</h2>
+            <h2 className="text-2xl font-bold">Ready to grow your audience?</h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              LateWiz is MIT licensed and free to use. Self-host it on your own
-              infrastructure, contribute to the project, or just use it as-is.
+              Join thousands of authors and creators who use Author Automations
+              Social to schedule their content and grow their platform.
             </p>
-            <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <div className="flex justify-center w-full sm:w-auto">
-                <iframe
-                  src="https://ghbtns.com/github-btn.html?user=getlate-dev&repo=latewiz&type=star&count=true&size=large"
-                  style={{ border: 0 }}
-                  scrolling="0"
-                  width="150"
-                  height="30"
-                  title="GitHub Stars"
-                />
-              </div>
-              <Button variant="outline" asChild>
-                <a
-                  href="https://docs.getlate.dev"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Read the Docs
-                </a>
+            <div className="mt-8">
+              <Button size="lg" asChild>
+                <Link href="/pricing">
+                  Get Started Today
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
             </div>
           </div>
@@ -313,23 +284,12 @@ export default function LandingPage() {
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <Logo size="sm" />
             <p className="text-sm text-muted-foreground">
-              Built with{" "}
-              <a
-                href="https://getlate.dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Late
-              </a>
-              {" "}API
+              &copy; {new Date().getFullYear()} Author Automations. All rights
+              reserved.
             </p>
           </div>
         </div>
       </footer>
-
-      {/* API Key Modal */}
-      <ApiKeyModal open={showApiKeyModal} onOpenChange={setShowApiKeyModal} />
     </div>
   );
 }

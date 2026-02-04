@@ -1,12 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLate } from "./use-late";
-import { useCurrentProfileId } from "./use-profiles";
+import { useAuth } from "./use-auth";
 import type { Platform } from "@/lib/late-api";
 
 export const accountKeys = {
   all: ["accounts"] as const,
-  list: (profileId: string) => ["accounts", "list", profileId] as const,
-  health: (profileId: string) => ["accounts", "health", profileId] as const,
+  list: () => ["accounts", "list"] as const,
+  health: () => ["accounts", "health"] as const,
   detail: (accountId: string) => ["accounts", "detail", accountId] as const,
 };
 
@@ -29,46 +28,42 @@ export interface AccountHealth {
 }
 
 /**
- * Hook to fetch all accounts for the current profile
+ * Hook to fetch all accounts for the tenant's profile
  */
-export function useAccounts(profileId?: string) {
-  const late = useLate();
-  const currentProfileId = useCurrentProfileId();
-  const targetProfileId = profileId || currentProfileId;
+export function useAccounts() {
+  const { isAuthenticated, getlateProfileId } = useAuth();
 
   return useQuery({
-    queryKey: accountKeys.list(targetProfileId || ""),
+    queryKey: accountKeys.list(),
     queryFn: async () => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.accounts.listAccounts({
-        query: { profileId: targetProfileId },
-      });
-      if (error) throw error;
-      return data;
+      const response = await fetch("/api/late/accounts");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch accounts");
+      }
+      return response.json();
     },
-    enabled: !!late && !!targetProfileId,
+    enabled: isAuthenticated && !!getlateProfileId,
   });
 }
 
 /**
  * Hook to fetch account health status
  */
-export function useAccountsHealth(profileId?: string) {
-  const late = useLate();
-  const currentProfileId = useCurrentProfileId();
-  const targetProfileId = profileId || currentProfileId;
+export function useAccountsHealth() {
+  const { isAuthenticated, getlateProfileId } = useAuth();
 
   return useQuery({
-    queryKey: accountKeys.health(targetProfileId || ""),
+    queryKey: accountKeys.health(),
     queryFn: async () => {
-      if (!late) throw new Error("Not authenticated");
-      const { data, error } = await late.accounts.getAllAccountsHealth({
-        query: { profileId: targetProfileId },
-      });
-      if (error) throw error;
-      return data;
+      const response = await fetch("/api/late/accounts/health");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch account health");
+      }
+      return response.json();
     },
-    enabled: !!late && !!targetProfileId,
+    enabled: isAuthenticated && !!getlateProfileId,
   });
 }
 
@@ -76,32 +71,22 @@ export function useAccountsHealth(profileId?: string) {
  * Hook to start OAuth connection flow
  */
 export function useConnectAccount() {
-  const late = useLate();
-  const currentProfileId = useCurrentProfileId();
+  const { isAuthenticated } = useAuth();
 
   return useMutation({
-    mutationFn: async ({
-      platform,
-      profileId,
-    }: {
-      platform: Platform;
-      profileId?: string;
-    }) => {
-      if (!late) throw new Error("Not authenticated");
-      const targetProfileId = profileId || currentProfileId;
-      if (!targetProfileId) throw new Error("No profile selected");
+    mutationFn: async ({ platform }: { platform: Platform }) => {
+      if (!isAuthenticated) throw new Error("Not authenticated");
 
       const redirectUrl = `${window.location.origin}/callback`;
-      const { data, error } = await late.connect.getConnectUrl({
-        path: { platform },
-        query: {
-          profileId: targetProfileId,
-          redirect_url: redirectUrl,
-          headless: true,
-        },
-      });
-      if (error) throw error;
-      return data;
+      const response = await fetch(
+        `/api/late/connect/${platform}?redirect_url=${encodeURIComponent(redirectUrl)}`
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get connect URL");
+      }
+      return response.json();
     },
   });
 }
@@ -110,16 +95,18 @@ export function useConnectAccount() {
  * Hook to delete/disconnect an account
  */
 export function useDeleteAccount() {
-  const late = useLate();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (accountId: string) => {
-      if (!late) throw new Error("Not authenticated");
-      const { error } = await late.accounts.deleteAccount({
-        path: { accountId },
+      const response = await fetch(`/api/late/accounts/${accountId}`, {
+        method: "DELETE",
       });
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete account");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.all });
@@ -130,8 +117,8 @@ export function useDeleteAccount() {
 /**
  * Hook to get accounts grouped by platform
  */
-export function useAccountsByPlatform(profileId?: string) {
-  const { data, ...rest } = useAccounts(profileId);
+export function useAccountsByPlatform() {
+  const { data, ...rest } = useAccounts();
 
   const accountsByPlatform = data?.accounts?.reduce(
     (acc: Record<Platform, Account[]>, account: Account) => {

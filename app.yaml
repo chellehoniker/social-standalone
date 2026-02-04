@@ -1,0 +1,53 @@
+name: author-automations-social
+region: nyc
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: chellehoniker/social-standalone
+      branch: main
+      deploy_on_push: true
+    http_port: 3000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 10
+      period_seconds: 30
+    routes:
+      - path: /
+    envs:
+      # Supabase Configuration
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://ndbuijvewcsqziqhwtrp.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # Stripe Configuration
+      - key: STRIPE_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: NEXT_PUBLIC_STRIPE_PRICE_MONTHLY
+        scope: RUN_AND_BUILD_TIME
+        value: price_1RvOYhJ7dptCyQA0pvznjt0R
+      - key: NEXT_PUBLIC_STRIPE_PRICE_ANNUAL
+        scope: RUN_AND_BUILD_TIME
+        value: price_1RvOYhJ7dptCyQA0urghLrwq
+
+      # GetLate API (Server-side only)
+      - key: LATE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # Application URL (set by Digital Ocean)
+      - key: NEXT_PUBLIC_APP_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${APP_URL}

@@ -3,12 +3,13 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useAuthStore, useAppStore } from "@/stores";
+import { useAuth } from "@/hooks/use-auth";
+import { useAppStore } from "@/stores";
 import { getTimezoneOptions } from "@/lib/timezones";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -27,15 +28,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Key, Moon, Sun, Globe, LogOut, ExternalLink } from "lucide-react";
+import { CreditCard, Moon, Sun, Globe, LogOut, ExternalLink, Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { apiKey, usageStats, logout } = useAuthStore();
+  const { profile, signOut, isLoading } = useAuth();
   const { timezone, setTimezone } = useAppStore();
 
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
 
   // Compute timezone options - always includes user's browser timezone and current selection
   const timezoneOptions = useMemo(
@@ -43,14 +44,62 @@ export default function SettingsPage() {
     [timezone]
   );
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
     router.push("/");
   };
 
-  const maskedApiKey = apiKey
-    ? `${apiKey.slice(0, 7)}${"•".repeat(20)}${apiKey.slice(-4)}`
-    : "";
+  const handleManageSubscription = async () => {
+    setIsManagingSubscription(true);
+    try {
+      const response = await fetch("/api/stripe/portal", {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Failed to open subscription portal:", error);
+    } finally {
+      setIsManagingSubscription(false);
+    }
+  };
+
+  // Format the subscription status for display
+  const getStatusBadge = (status: string | undefined) => {
+    switch (status) {
+      case "active":
+        return <Badge variant="default" className="bg-green-600">Active</Badge>;
+      case "past_due":
+        return <Badge variant="destructive">Past Due</Badge>;
+      case "canceled":
+        return <Badge variant="secondary">Canceled</Badge>;
+      default:
+        return <Badge variant="outline">Inactive</Badge>;
+    }
+  };
+
+  // Get plan name from price ID
+  const getPlanName = (priceId: string | null | undefined) => {
+    if (priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL) {
+      return "Annual Plan";
+    }
+    if (priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY) {
+      return "Monthly Plan";
+    }
+    return "Subscription";
+  };
+
+  // Format next billing date
+  const formatBillingDate = (date: string | null | undefined) => {
+    if (!date) return null;
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
@@ -62,86 +111,63 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* API Key */}
+      {/* Subscription */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Key className="h-4 w-4" />
-            API Key
+            <CreditCard className="h-4 w-4" />
+            Subscription
           </CardTitle>
           <CardDescription>
-            Your Late API key is used to connect to your Late account.
+            Manage your subscription and billing details.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Current API Key</Label>
-            <div className="flex gap-2">
-              <Input
-                type={showApiKey ? "text" : "password"}
-                value={showApiKey ? apiKey || "" : maskedApiKey}
-                readOnly
-                className="font-mono"
-              />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : profile ? (
+            <>
+              <div className="rounded-lg bg-muted p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{getPlanName(profile.price_id)}</span>
+                  {getStatusBadge(profile.subscription_status)}
+                </div>
+                {profile.current_period_end && (
+                  <div className="text-sm text-muted-foreground">
+                    {profile.subscription_status === "canceled" ? (
+                      <>Access until {formatBillingDate(profile.current_period_end)}</>
+                    ) : (
+                      <>Next billing date: {formatBillingDate(profile.current_period_end)}</>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Button
                 variant="outline"
-                onClick={() => setShowApiKey(!showApiKey)}
+                onClick={handleManageSubscription}
+                disabled={isManagingSubscription}
               >
-                {showApiKey ? "Hide" : "Show"}
+                {isManagingSubscription ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Opening...
+                  </>
+                ) : (
+                  <>
+                    Manage Subscription
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
-            </div>
-          </div>
-
-          {usageStats && (
-            <div className="rounded-lg bg-muted p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{usageStats.planName}</span>
-                <Button variant="link" size="sm" className="h-auto p-0" asChild>
-                  <a
-                    href="https://getlate.dev/dashboard"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Manage Plan
-                    <ExternalLink className="ml-1 h-3 w-3" />
-                  </a>
-                </Button>
-              </div>
-              <div className="mt-2 grid gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Uploads</span>
-                  <span>
-                    {usageStats.limits.uploads < 0 ? (
-                      <>{usageStats.usage.uploads.toLocaleString()} / ∞</>
-                    ) : (
-                      <>{usageStats.usage.uploads.toLocaleString()} / {usageStats.limits.uploads.toLocaleString()}</>
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Profiles</span>
-                  <span>
-                    {usageStats.limits.profiles < 0 ? (
-                      <>{usageStats.usage.profiles.toLocaleString()} / ∞</>
-                    ) : (
-                      <>{usageStats.usage.profiles.toLocaleString()} / {usageStats.limits.profiles.toLocaleString()}</>
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Unable to load subscription information.
+            </p>
           )}
-
-          <Button variant="outline" asChild>
-            <a
-              href="https://getlate.dev/dashboard/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Manage API Keys
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
         </CardContent>
       </Card>
 
@@ -157,7 +183,7 @@ export default function SettingsPage() {
             Appearance
           </CardTitle>
           <CardDescription>
-            Customize how LateWiz looks on your device.
+            Customize how Author Automations looks on your device.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -230,8 +256,8 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Sign Out</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will remove your API key from this device. You&apos;ll need
-                  to enter it again to use LateWiz.
+                  You&apos;ll be signed out of Author Automations Social on this device.
+                  You can sign back in anytime using your email.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -249,35 +275,16 @@ export default function SettingsPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="text-center text-sm text-muted-foreground">
-            <p>LateWiz - Your social media scheduling wizard</p>
+            <p>Author Automations Social</p>
             <p className="mt-1">
-              Powered by{" "}
-              <a
-                href="https://getlate.dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Late
-              </a>
+              Social media scheduling for authors and creators.
             </p>
             <p className="mt-2">
               <a
-                href="https://github.com/getlate-dev/latewiz"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="mailto:support@authorautomations.com"
                 className="underline underline-offset-4 hover:text-foreground"
               >
-                View on GitHub
-              </a>
-              {" · "}
-              <a
-                href="https://github.com/getlate-dev/latewiz/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                Report Issue
+                Contact Support
               </a>
             </p>
           </div>
