@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { clientEnv } from "@/lib/env";
 
 interface ProfileData {
   id: string;
@@ -14,9 +15,12 @@ interface ProfileData {
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
+
+  // Use configured app URL, not request origin (which may be internal container address)
+  const appUrl = clientEnv.appUrl;
 
   if (code) {
     const supabase = await createClient();
@@ -87,10 +91,10 @@ export async function GET(request: Request) {
         } as never);
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${appUrl}${next}`);
     }
   }
 
   // Auth error - redirect to login with error
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+  return NextResponse.redirect(`${appUrl}/login?error=auth_failed`);
 }
