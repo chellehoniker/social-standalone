@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
@@ -25,30 +25,35 @@ export function useAuth() {
     isAuthenticated: false,
   });
 
-  const supabase = createClient();
+  // Memoize the client - createClient() returns singleton but useMemo ensures stable reference
+  const supabase = useMemo(() => createClient(), []);
 
-  // Fetch profile data
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (error) {
-      console.error("Failed to fetch profile:", error);
-      return null;
-    }
-    return data;
-  }, [supabase]);
-
-  // Initialize auth state
+  // Initialize auth state - run once on mount
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchProfile = async (userId: string) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) {
+        console.error("Failed to fetch profile:", error);
+        return null;
+      }
+      return data;
+    };
+
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
+      if (!isMounted) return;
+
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
+        if (!isMounted) return;
         setState({
           user: session.user,
           session,
@@ -72,8 +77,11 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
+          if (!isMounted) return;
           setState({
             user: session.user,
             session,
@@ -94,9 +102,10 @@ export function useAuth() {
     );
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase, fetchProfile]);
+  }, [supabase]);
 
   // Sign out function
   const signOut = useCallback(async () => {
@@ -113,10 +122,17 @@ export function useAuth() {
   // Refresh profile data
   const refreshProfile = useCallback(async () => {
     if (state.user) {
-      const profile = await fetchProfile(state.user.id);
-      setState((prev) => ({ ...prev, profile }));
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", state.user.id)
+        .single();
+
+      if (!error && data) {
+        setState((prev) => ({ ...prev, profile: data }));
+      }
     }
-  }, [state.user, fetchProfile]);
+  }, [state.user, supabase]);
 
   return {
     ...state,
