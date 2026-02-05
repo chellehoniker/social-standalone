@@ -49,7 +49,7 @@ export function useAdminUsers(filters?: Partial<UserFilters>) {
     queryKey: adminKeys.users(filters as UserFilters),
     queryFn: async (): Promise<UsersResponse> => {
       const url = `/api/admin/users${queryString.toString() ? `?${queryString}` : ""}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: "include" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch users");
@@ -66,7 +66,7 @@ export function useAdminUser(userId: string) {
   return useQuery({
     queryKey: adminKeys.user(userId),
     queryFn: async (): Promise<Profile> => {
-      const response = await fetch(`/api/admin/users/${userId}`);
+      const response = await fetch(`/api/admin/users/${userId}`, { credentials: "include" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch user");
@@ -95,6 +95,7 @@ export function useUpdateUser() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
       if (!response.ok) {
         const error = await response.json();
@@ -120,6 +121,7 @@ export function useDeleteUser() {
     mutationFn: async (userId: string) => {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
+        credentials: "include",
       });
       if (!response.ok) {
         const error = await response.json();
@@ -141,7 +143,7 @@ export function useAdminAnalytics() {
   return useQuery({
     queryKey: adminKeys.analytics(),
     queryFn: async (): Promise<AnalyticsResponse> => {
-      const response = await fetch("/api/admin/analytics");
+      const response = await fetch("/api/admin/analytics", { credentials: "include" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch analytics");
@@ -158,7 +160,7 @@ export function useSignupChart(days = 30) {
   return useQuery({
     queryKey: adminKeys.signups(days),
     queryFn: async (): Promise<SignupsResponse> => {
-      const response = await fetch(`/api/admin/analytics/signups?days=${days}`);
+      const response = await fetch(`/api/admin/analytics/signups?days=${days}`, { credentials: "include" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch signups");
