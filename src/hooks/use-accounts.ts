@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "./use-auth";
+import { useServerAuth } from "./use-server-auth";
 import type { Platform } from "@/lib/late-api";
 import { isPlatform } from "@/lib/type-guards";
 
@@ -32,7 +32,11 @@ export interface AccountHealth {
  * Hook to fetch all accounts for the tenant's profile
  */
 export function useAccounts() {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+
+  // Server auth is only available in protected routes (dashboard)
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: accountKeys.list(),
@@ -52,7 +56,10 @@ export function useAccounts() {
  * Hook to fetch account health status
  */
 export function useAccountsHealth() {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: accountKeys.health(),
@@ -72,7 +79,8 @@ export function useAccountsHealth() {
  * Hook to start OAuth connection flow
  */
 export function useConnectAccount() {
-  const { isAuthenticated } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
 
   return useMutation({
     mutationFn: async ({ platform }: { platform: Platform }) => {

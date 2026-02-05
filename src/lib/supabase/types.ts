@@ -21,6 +21,7 @@ export interface Database {
           subscription_id: string | null;
           price_id: string | null;
           current_period_end: string | null;
+          is_admin: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -33,6 +34,7 @@ export interface Database {
           subscription_id?: string | null;
           price_id?: string | null;
           current_period_end?: string | null;
+          is_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -45,6 +47,7 @@ export interface Database {
           subscription_id?: string | null;
           price_id?: string | null;
           current_period_end?: string | null;
+          is_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };

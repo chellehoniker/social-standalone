@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
+import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
+import {
+  parseRequestBody,
+  CreateQueueSlotSchema,
+  UpdateQueueSlotSchema,
+} from "@/lib/validations";
 
 /**
  * GET /api/late/queue
@@ -9,6 +15,8 @@ import { getLateClient } from "@/lib/late-api";
 export async function GET(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -30,10 +38,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch queue" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
   return NextResponse.json(data);
@@ -46,6 +51,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -53,21 +60,20 @@ export async function POST(request: NextRequest) {
   }
 
   const { profileId } = validation;
-  const body = await request.json();
+
+  const parsed = await parseRequestBody(request, CreateQueueSlotSchema);
+  if (!parsed.success) return parsed.response;
 
   const late = await getLateClient();
   const { data, error } = await late.queue.createQueueSlot({
     body: {
-      ...body,
+      ...parsed.data,
       profileId,
     },
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to create queue slot" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
   return NextResponse.json(data);
@@ -80,6 +86,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const validation = await validateTenant();
   if (isValidationError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
     return NextResponse.json(
       { error: validation.error },
       { status: validation.status }
@@ -87,21 +95,20 @@ export async function PUT(request: NextRequest) {
   }
 
   const { profileId } = validation;
-  const body = await request.json();
+
+  const parsed = await parseRequestBody(request, UpdateQueueSlotSchema);
+  if (!parsed.success) return parsed.response;
 
   const late = await getLateClient();
   const { data, error } = await late.queue.updateQueueSlot({
     body: {
-      ...body,
+      ...parsed.data,
       profileId,
     },
   });
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to update queue slot" },
-      { status: 500 }
-    );
+    return badGateway("Late API", error);
   }
 
   return NextResponse.json(data);

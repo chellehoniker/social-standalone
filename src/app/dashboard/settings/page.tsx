@@ -3,7 +3,8 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useAuth } from "@/hooks/use-auth";
+import { useRequireServerAuth } from "@/hooks/use-server-auth";
+import { createClient } from "@/lib/supabase/client";
 import { useAppStore } from "@/stores";
 import { getTimezoneOptions } from "@/lib/timezones";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,10 +34,22 @@ import { CreditCard, Moon, Sun, Globe, LogOut, ExternalLink, Loader2 } from "luc
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { profile, signOut, isLoading } = useAuth();
+  const serverAuth = useRequireServerAuth();
   const { timezone, setTimezone } = useAppStore();
 
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+
+  // Build profile-like object from server auth for display
+  const profile = {
+    subscription_status: serverAuth.subscriptionStatus,
+    price_id: serverAuth.priceId,
+    current_period_end: serverAuth.currentPeriodEnd,
+  };
+
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+  };
 
   // Compute timezone options - always includes user's browser timezone and current selection
   const timezoneOptions = useMemo(
@@ -46,7 +59,8 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await signOut();
-    router.push("/");
+    // Use window.location for full page reload to clear all auth state
+    window.location.href = "/";
   };
 
   const handleManageSubscription = async () => {
@@ -67,7 +81,7 @@ export default function SettingsPage() {
   };
 
   // Format the subscription status for display
-  const getStatusBadge = (status: string | undefined) => {
+  const getStatusBadge = (status: string | null | undefined) => {
     switch (status) {
       case "active":
         return <Badge variant="default" className="bg-green-600">Active</Badge>;
@@ -123,51 +137,39 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="rounded-lg bg-muted p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{getPlanName(profile.price_id)}</span>
+              {getStatusBadge(profile.subscription_status)}
             </div>
-          ) : profile ? (
-            <>
-              <div className="rounded-lg bg-muted p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{getPlanName(profile.price_id)}</span>
-                  {getStatusBadge(profile.subscription_status)}
-                </div>
-                {profile.current_period_end && (
-                  <div className="text-sm text-muted-foreground">
-                    {profile.subscription_status === "canceled" ? (
-                      <>Access until {formatBillingDate(profile.current_period_end)}</>
-                    ) : (
-                      <>Next billing date: {formatBillingDate(profile.current_period_end)}</>
-                    )}
-                  </div>
+            {profile.current_period_end && (
+              <div className="text-sm text-muted-foreground">
+                {profile.subscription_status === "canceled" ? (
+                  <>Access until {formatBillingDate(profile.current_period_end)}</>
+                ) : (
+                  <>Next billing date: {formatBillingDate(profile.current_period_end)}</>
                 )}
               </div>
+            )}
+          </div>
 
-              <Button
-                variant="outline"
-                onClick={handleManageSubscription}
-                disabled={isManagingSubscription}
-              >
-                {isManagingSubscription ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Opening...
-                  </>
-                ) : (
-                  <>
-                    Manage Subscription
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Unable to load subscription information.
-            </p>
-          )}
+          <Button
+            variant="outline"
+            onClick={handleManageSubscription}
+            disabled={isManagingSubscription}
+          >
+            {isManagingSubscription ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Opening...
+              </>
+            ) : (
+              <>
+                Manage Subscription
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 

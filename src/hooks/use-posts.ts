@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "./use-auth";
+import { useServerAuth } from "./use-server-auth";
 import type { Platform, PlatformSpecificData } from "@/lib/late-api";
 
 export const postKeys = {
@@ -54,7 +54,9 @@ export interface UpdatePostInput {
  * Hook to fetch posts with filters
  */
 export function usePosts(filters: PostFilters = {}) {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   const queryString = new URLSearchParams();
   if (filters.status) queryString.set("status", filters.status);
@@ -82,7 +84,8 @@ export function usePosts(filters: PostFilters = {}) {
  * Hook to fetch a single post
  */
 export function usePost(postId: string) {
-  const { isAuthenticated } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
 
   return useQuery({
     queryKey: postKeys.detail(postId),

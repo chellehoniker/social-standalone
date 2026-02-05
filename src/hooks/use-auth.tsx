@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
@@ -24,8 +24,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 /**
  * AuthProvider - Single source of truth for auth state
  *
- * This provider initializes auth ONCE at the app level.
- * All components using useAuth() share the same state.
+ * Uses onAuthStateChange as the primary auth mechanism to avoid
+ * issues with getSession() and navigator.locks in development.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -36,14 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
   });
 
-  // Singleton Supabase client
-  const supabase = useMemo(() => createClient(), []);
-
-  // Initialize auth state - runs ONCE at app level
   useEffect(() => {
     let isMounted = true;
+    const supabase = createClient();
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async (userId: string): Promise<Profile | null> => {
       if (!isMounted) return null;
 
       try {
@@ -57,98 +54,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("[AuthProvider] Failed to fetch profile:", error);
           return null;
         }
-        return data;
+        return data as Profile;
       } catch (err) {
-        // Ignore AbortError - just means component unmounted
         if (err instanceof Error && err.name === "AbortError") {
           return null;
         }
-        throw err;
+        console.error("[AuthProvider] Profile fetch error:", err);
+        return null;
       }
     };
 
-    const initAuth = async () => {
-      try {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        const session = data?.session;
+    const handleAuthChange = async (session: Session | null) => {
+      if (!isMounted) return;
 
-        if (sessionError) {
-          console.error("[AuthProvider] getSession error:", sessionError);
-        }
-
+      if (session?.user) {
+        const profile = await fetchProfile(session.user.id);
         if (!isMounted) return;
 
-        if (session?.user) {
-          const profile = await fetchProfile(session.user.id);
-          if (!isMounted) return;
-          setState({
-            user: session.user,
-            session,
-            profile,
-            isLoading: false,
-            isAuthenticated: true,
-          });
-        } else {
-          setState({
-            user: null,
-            session: null,
-            profile: null,
-            isLoading: false,
-            isAuthenticated: false,
-          });
-        }
-      } catch (err) {
-        // Ignore AbortError - expected when component unmounts during fetch
-        if (err instanceof Error && err.name === "AbortError") {
-          return;
-        }
-        console.error("[AuthProvider] initAuth error:", err);
-        if (isMounted) {
-          setState({
-            user: null,
-            session: null,
-            profile: null,
-            isLoading: false,
-            isAuthenticated: false,
-          });
-        }
+        setState({
+          user: session.user,
+          session,
+          profile,
+          isLoading: false,
+          isAuthenticated: true,
+        });
+      } else {
+        setState({
+          user: null,
+          session: null,
+          profile: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
       }
     };
 
-    initAuth();
-
-    // Single subscription for auth changes
+    // Subscribe to auth changes - this will fire INITIAL_SESSION immediately
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!isMounted) return;
-
-        try {
-          if (session?.user) {
-            const profile = await fetchProfile(session.user.id);
-            if (!isMounted) return;
-            setState({
-              user: session.user,
-              session,
-              profile,
-              isLoading: false,
-              isAuthenticated: true,
-            });
-          } else {
-            setState({
-              user: null,
-              session: null,
-              profile: null,
-              isLoading: false,
-              isAuthenticated: false,
-            });
-          }
-        } catch (err) {
-          // Ignore AbortError
-          if (err instanceof Error && err.name === "AbortError") {
-            return;
-          }
-          console.error("[AuthProvider] onAuthStateChange error:", err);
-        }
+        console.log("[AuthProvider] onAuthStateChange:", event);
+        await handleAuthChange(session);
       }
     );
 
@@ -156,10 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   // Sign out function
   const signOut = useCallback(async () => {
+    const supabase = createClient();
     await supabase.auth.signOut();
     setState({
       user: null,
@@ -168,11 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: false,
       isAuthenticated: false,
     });
-  }, [supabase]);
+  }, []);
 
   // Refresh profile data
   const refreshProfile = useCallback(async () => {
     if (state.user) {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -180,10 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (!error && data) {
-        setState((prev) => ({ ...prev, profile: data }));
+        setState((prev) => ({ ...prev, profile: data as Profile }));
       }
     }
-  }, [state.user, supabase]);
+  }, [state.user]);
 
   const value: AuthContextValue = {
     ...state,
@@ -201,9 +148,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 /**
  * Hook to access auth state from the AuthContext
- *
- * All components using this hook share the same auth state.
- * Auth is initialized once by AuthProvider, not per-component.
  */
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);

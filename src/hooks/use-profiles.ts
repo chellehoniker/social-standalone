@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "./use-auth";
+import { useServerAuth } from "./use-server-auth";
 
 export const profileKeys = {
   all: ["profiles"] as const,
@@ -11,7 +11,9 @@ export const profileKeys = {
  * In multi-tenant mode, each user has exactly one profile
  */
 export function useProfile() {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: profileKeys.all,
@@ -32,8 +34,8 @@ export function useProfile() {
  * In multi-tenant mode, this comes from the Supabase profile
  */
 export function useCurrentProfileId(): string | undefined {
-  const { getlateProfileId } = useAuth();
-  return getlateProfileId || undefined;
+  const serverAuth = useServerAuth();
+  return serverAuth?.getlateProfileId || undefined;
 }
 
 /**

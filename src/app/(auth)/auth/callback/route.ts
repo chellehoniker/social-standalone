@@ -17,10 +17,29 @@ interface ProfileData {
   current_period_end: string | null;
 }
 
+// Validate redirect path to prevent open redirect attacks
+function sanitizeRedirectPath(path: string | null): string {
+  const defaultPath = "/dashboard";
+  if (!path) return defaultPath;
+
+  // Must start with / and not contain protocol or double slashes
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) {
+    return defaultPath;
+  }
+
+  // Only allow paths to known routes
+  const allowedPrefixes = ["/dashboard", "/settings", "/callback"];
+  if (!allowedPrefixes.some(prefix => path.startsWith(prefix))) {
+    return defaultPath;
+  }
+
+  return path;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = sanitizeRedirectPath(searchParams.get("next"));
 
   // Use configured app URL, not request origin (which may be internal container address)
   const appUrl = clientEnv.appUrl;

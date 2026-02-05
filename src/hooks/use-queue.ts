@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "./use-auth";
+import { useServerAuth } from "./use-server-auth";
 
 export const queueKeys = {
   all: ["queue"] as const,
@@ -56,7 +56,9 @@ export function normalizeSlot(slot: QueueSlot): QueueSlot {
  * Hook to fetch all queues for a profile
  */
 export function useQueues() {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: queueKeys.queues(),
@@ -76,7 +78,9 @@ export function useQueues() {
  * Hook to fetch queue slots
  */
 export function useQueueSlots(queueId?: string) {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: queueKeys.slots(queueId),
@@ -101,7 +105,9 @@ export function useQueueSlots(queueId?: string) {
  * Hook to preview upcoming queue times
  */
 export function useQueuePreview(count = 10) {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: queueKeys.preview(count),
@@ -304,7 +310,9 @@ export function useSetDefaultQueue() {
  * Hook to get the next available queue slot
  */
 export function useNextQueueSlot(queueId?: string) {
-  const { isAuthenticated, getlateProfileId } = useAuth();
+  const serverAuth = useServerAuth();
+  const isAuthenticated = serverAuth?.isAuthenticated ?? false;
+  const getlateProfileId = serverAuth?.getlateProfileId;
 
   return useQuery({
     queryKey: queueKeys.nextSlot(queueId),

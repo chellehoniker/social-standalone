@@ -39,8 +39,17 @@ export default function LandingPage() {
   }, [isAuthenticated, isLoading, router]);
 
   // Don't render until mounted
-  if (!mounted || isLoading) {
+  if (!mounted) {
     return null;
+  }
+
+  // Show loading state while auth is resolving
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
   }
 
   const features = [
