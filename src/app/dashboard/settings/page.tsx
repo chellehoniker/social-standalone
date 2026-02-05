@@ -47,11 +47,6 @@ export default function SettingsPage() {
     current_period_end: serverAuth.currentPeriodEnd,
   };
 
-  const signOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-  };
-
   // Compute timezone options - always includes user's browser timezone and current selection
   const timezoneOptions = useMemo(
     () => getTimezoneOptions(timezone),
@@ -60,10 +55,11 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     setIsSigningOut(true);
-    signOut().finally(() => {
-      // Use window.location for full page reload to clear all auth state
-      window.location.href = "/";
-    });
+    // Sign out and redirect - don't wait for signOut to complete
+    // The page reload will clear all client-side auth state
+    const supabase = createClient();
+    supabase.auth.signOut().catch(() => {});
+    window.location.href = "/";
   };
 
   const handleManageSubscription = async () => {
