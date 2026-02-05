@@ -44,17 +44,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     const fetchProfile = async (userId: string) => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+      if (!isMounted) return null;
 
-      if (error) {
-        console.error("[AuthProvider] Failed to fetch profile:", error);
-        return null;
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
+
+        if (error) {
+          console.error("[AuthProvider] Failed to fetch profile:", error);
+          return null;
+        }
+        return data;
+      } catch (err) {
+        // Ignore AbortError - just means component unmounted
+        if (err instanceof Error && err.name === "AbortError") {
+          return null;
+        }
+        throw err;
       }
-      return data;
     };
 
     const initAuth = async () => {
@@ -88,6 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
       } catch (err) {
+        // Ignore AbortError - expected when component unmounts during fetch
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
         console.error("[AuthProvider] initAuth error:", err);
         if (isMounted) {
           setState({
@@ -108,24 +122,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         if (!isMounted) return;
 
-        if (session?.user) {
-          const profile = await fetchProfile(session.user.id);
-          if (!isMounted) return;
-          setState({
-            user: session.user,
-            session,
-            profile,
-            isLoading: false,
-            isAuthenticated: true,
-          });
-        } else {
-          setState({
-            user: null,
-            session: null,
-            profile: null,
-            isLoading: false,
-            isAuthenticated: false,
-          });
+        try {
+          if (session?.user) {
+            const profile = await fetchProfile(session.user.id);
+            if (!isMounted) return;
+            setState({
+              user: session.user,
+              session,
+              profile,
+              isLoading: false,
+              isAuthenticated: true,
+            });
+          } else {
+            setState({
+              user: null,
+              session: null,
+              profile: null,
+              isLoading: false,
+              isAuthenticated: false,
+            });
+          }
+        } catch (err) {
+          // Ignore AbortError
+          if (err instanceof Error && err.name === "AbortError") {
+            return;
+          }
+          console.error("[AuthProvider] onAuthStateChange error:", err);
         }
       }
     );
