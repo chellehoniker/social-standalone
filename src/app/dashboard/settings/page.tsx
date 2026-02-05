@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const { timezone, setTimezone } = useAppStore();
 
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Build profile-like object from server auth for display
   const profile = {
@@ -57,10 +58,12 @@ export default function SettingsPage() {
     [timezone]
   );
 
-  const handleLogout = async () => {
-    await signOut();
-    // Use window.location for full page reload to clear all auth state
-    window.location.href = "/";
+  const handleLogout = () => {
+    setIsSigningOut(true);
+    signOut().finally(() => {
+      // Use window.location for full page reload to clear all auth state
+      window.location.href = "/";
+    });
   };
 
   const handleManageSubscription = async () => {
@@ -263,10 +266,21 @@ export default function SettingsPage() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout}>
-                  Sign Out
-                </AlertDialogAction>
+                <AlertDialogCancel disabled={isSigningOut}>Cancel</AlertDialogCancel>
+                <Button
+                  variant="default"
+                  onClick={handleLogout}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing out...
+                    </>
+                  ) : (
+                    "Sign Out"
+                  )}
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
