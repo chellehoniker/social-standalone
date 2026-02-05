@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    let hasResolved = false;
     const supabase = createClient();
 
     const fetchProfile = async (userId: string): Promise<Profile | null> => {
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const handleAuthChange = async (session: Session | null) => {
       if (!isMounted) return;
+      hasResolved = true;
 
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
@@ -97,8 +99,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
+    // Timeout fallback - if auth doesn't resolve in 3 seconds, assume not authenticated
+    const timeout = setTimeout(() => {
+      if (!hasResolved && isMounted) {
+        console.warn("[AuthProvider] Auth check timed out, assuming not authenticated");
+        setState({
+          user: null,
+          session: null,
+          profile: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
+      }
+    }, 3000);
+
     return () => {
       isMounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
