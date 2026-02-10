@@ -26,8 +26,13 @@ export async function proxy(request: NextRequest) {
       }
     );
 
-    // Refresh session if expired — triggers token refresh via Supabase server
-    await supabase.auth.getUser();
+    // Refresh session if expired — 5s timeout to prevent hanging
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Auth refresh timeout")), 5000)
+      ),
+    ]);
   } catch {
     // Don't let auth refresh errors block page loads
   }
