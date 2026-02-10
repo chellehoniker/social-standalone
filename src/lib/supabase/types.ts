@@ -23,6 +23,8 @@ export interface Database {
           price_id: string | null;
           current_period_end: string | null;
           is_admin: boolean;
+          api_key_hash: string | null;
+          api_key_created_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -37,6 +39,8 @@ export interface Database {
           price_id?: string | null;
           current_period_end?: string | null;
           is_admin?: boolean;
+          api_key_hash?: string | null;
+          api_key_created_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -51,6 +55,8 @@ export interface Database {
           price_id?: string | null;
           current_period_end?: string | null;
           is_admin?: boolean;
+          api_key_hash?: string | null;
+          api_key_created_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

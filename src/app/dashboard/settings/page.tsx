@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { CreditCard, Moon, Sun, Globe, LogOut, ExternalLink, Loader2 } from "lucide-react";
+import { ApiKeySection } from "@/components/settings/api-key-section";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -171,6 +172,9 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* API Key */}
+      <ApiKeySection />
 
       {/* Appearance */}
       <Card>
