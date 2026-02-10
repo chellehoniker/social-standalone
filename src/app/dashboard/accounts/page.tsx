@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   useAccounts,
@@ -34,8 +35,24 @@ import { PLATFORM_NAMES, type Platform } from "@/lib/late-api";
 import { Users, Plus, Loader2, AlertCircle, RefreshCw, Trash2 } from "lucide-react";
 
 export default function AccountsPage() {
+  const searchParams = useSearchParams();
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
+
+  // Show toast for callback redirects
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const error = searchParams.get("error");
+    if (connected) {
+      toast.success(`${connected} connected successfully!`);
+      // Clean URL without triggering navigation
+      window.history.replaceState(null, "", "/dashboard/accounts");
+    }
+    if (error) {
+      toast.error(`Connection failed: ${error}`);
+      window.history.replaceState(null, "", "/dashboard/accounts");
+    }
+  }, [searchParams]);
 
   // Hooks for data fetching
   const { data: accountsData, isLoading } = useAccounts();
