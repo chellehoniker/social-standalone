@@ -15,13 +15,13 @@ export async function GET(request: NextRequest) {
     return forbidden(validation.error);
   }
 
-  // Parse query parameters
+  // Parse query parameters (convert null to undefined for Zod)
   const searchParams = request.nextUrl.searchParams;
   const parsed = UserFiltersSchema.safeParse({
-    search: searchParams.get("search"),
-    status: searchParams.get("status"),
-    page: searchParams.get("page"),
-    limit: searchParams.get("limit"),
+    search: searchParams.get("search") ?? undefined,
+    status: searchParams.get("status") ?? undefined,
+    page: searchParams.get("page") ?? undefined,
+    limit: searchParams.get("limit") ?? undefined,
   });
 
   if (!parsed.success) {
