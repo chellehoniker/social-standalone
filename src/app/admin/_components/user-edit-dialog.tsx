@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -40,6 +42,7 @@ export function UserEditDialog({
   const [subscriptionStatus, setSubscriptionStatus] =
     useState<SubscriptionStatus>("inactive");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessibleProfileIds, setAccessibleProfileIds] = useState("");
 
   const updateUser = useUpdateUser();
 
@@ -48,11 +51,21 @@ export function UserEditDialog({
     if (user) {
       setSubscriptionStatus(user.subscription_status);
       setIsAdmin(user.is_admin || false);
+      // Convert array to comma-separated string for editing
+      setAccessibleProfileIds(
+        user.accessible_profile_ids?.join(", ") || ""
+      );
     }
   }, [user]);
 
   const handleSave = async () => {
     if (!user) return;
+
+    // Parse accessible profile IDs from comma-separated string
+    const profileIds = accessibleProfileIds
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
 
     try {
       await updateUser.mutateAsync({
@@ -60,6 +73,7 @@ export function UserEditDialog({
         data: {
           subscription_status: subscriptionStatus,
           is_admin: isAdmin,
+          accessible_profile_ids: profileIds.length > 0 ? profileIds : null,
         },
       });
       toast.success("User updated successfully");
@@ -116,6 +130,21 @@ export function UserEditDialog({
               checked={isAdmin}
               onCheckedChange={setIsAdmin}
             />
+          </div>
+
+          {/* Accessible Profiles (Pen Names) */}
+          <div className="space-y-2">
+            <Label htmlFor="accessible-profiles">Accessible Profiles (Pen Names)</Label>
+            <Textarea
+              id="accessible-profiles"
+              placeholder="Enter GetLate profile IDs, comma-separated"
+              value={accessibleProfileIds}
+              onChange={(e) => setAccessibleProfileIds(e.target.value)}
+              className="min-h-[60px] text-xs font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Additional GetLate profile IDs this user can access. Separate multiple IDs with commas.
+            </p>
           </div>
 
           {/* Read-only info */}

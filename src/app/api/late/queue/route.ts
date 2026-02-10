@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
 import {
@@ -10,10 +10,10 @@ import {
 
 /**
  * GET /api/late/queue
- * Returns queue slots for the tenant's profile
+ * Returns queue slots for the tenant's profile (supports multi-profile via X-Profile-Id header)
  */
 export async function GET(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);
@@ -46,10 +46,10 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/late/queue
- * Creates a new queue slot
+ * Creates a new queue slot (supports multi-profile via X-Profile-Id header)
  */
 export async function POST(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);
@@ -81,10 +81,10 @@ export async function POST(request: NextRequest) {
 
 /**
  * PUT /api/late/queue
- * Updates a queue slot
+ * Updates a queue slot (supports multi-profile via X-Profile-Id header)
  */
 export async function PUT(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);

@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatar";
 import { Logo, ErrorBoundary } from "@/components/shared";
+import { ProfileSwitcher } from "@/components/profile-switcher";
 import { ServerAuthProvider } from "@/hooks/use-server-auth";
 import {
   LayoutDashboard,
@@ -215,6 +216,7 @@ export function DashboardShell({
                   {userEmail}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <ProfileSwitcher />
                 <DropdownMenuItem asChild className="text-sm">
                   <Link href="/dashboard/settings">
                     <Settings className="mr-2 h-3 w-3" />

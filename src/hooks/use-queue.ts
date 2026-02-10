@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerAuth } from "./use-server-auth";
+import { fetchWithProfile } from "@/lib/api/fetch-with-profile";
 
 export const queueKeys = {
   all: ["queue"] as const,
@@ -63,7 +64,7 @@ export function useQueues() {
   return useQuery({
     queryKey: queueKeys.queues(),
     queryFn: async () => {
-      const response = await fetch("/api/late/queue?all=true");
+      const response = await fetchWithProfile("/api/late/queue?all=true");
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch queues");
@@ -86,7 +87,7 @@ export function useQueueSlots(queueId?: string) {
     queryKey: queueKeys.slots(queueId),
     queryFn: async () => {
       const url = queueId ? `/api/late/queue?queueId=${queueId}` : "/api/late/queue";
-      const response = await fetch(url);
+      const response = await fetchWithProfile(url);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch queue slots");
@@ -112,7 +113,7 @@ export function useQueuePreview(count = 10) {
   return useQuery({
     queryKey: queueKeys.preview(count),
     queryFn: async () => {
-      const response = await fetch(`/api/late/queue/preview?count=${count}`);
+      const response = await fetchWithProfile(`/api/late/queue/preview?count=${count}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch queue preview");
@@ -145,7 +146,7 @@ export function useCreateQueue() {
       slots: QueueSlot[];
       active?: boolean;
     }) => {
-      const response = await fetch("/api/late/queue", {
+      const response = await fetchWithProfile("/api/late/queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, timezone, slots, active }),
@@ -186,7 +187,7 @@ export function useUpdateQueueSlots() {
       setAsDefault?: boolean;
       reshuffleExisting?: boolean;
     }) => {
-      const response = await fetch("/api/late/queue", {
+      const response = await fetchWithProfile("/api/late/queue", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -233,7 +234,7 @@ export function useUpdateQueue() {
       active?: boolean;
       setAsDefault?: boolean;
     }) => {
-      const response = await fetch("/api/late/queue", {
+      const response = await fetchWithProfile("/api/late/queue", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -265,7 +266,7 @@ export function useDeleteQueue() {
 
   return useMutation({
     mutationFn: async ({ queueId }: { queueId: string }) => {
-      const response = await fetch(`/api/late/queue/${queueId}`, {
+      const response = await fetchWithProfile(`/api/late/queue/${queueId}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -320,7 +321,7 @@ export function useNextQueueSlot(queueId?: string) {
       const url = queueId
         ? `/api/late/queue/next?queueId=${queueId}`
         : "/api/late/queue/next";
-      const response = await fetch(url);
+      const response = await fetchWithProfile(url);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to get next slot");

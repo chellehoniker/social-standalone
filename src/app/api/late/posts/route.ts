@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badGateway, serverError } from "@/lib/api/errors";
 import { parseRequestBody, CreatePostSchema } from "@/lib/validations";
@@ -7,10 +7,10 @@ import { jsonWithCache, CacheDuration } from "@/lib/api/cache";
 
 /**
  * GET /api/late/posts
- * Returns posts for the tenant's profile
+ * Returns posts for the tenant's profile (supports multi-profile via X-Profile-Id header)
  */
 export async function GET(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);
@@ -52,10 +52,10 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/late/posts
- * Creates a new post
+ * Creates a new post (supports multi-profile via X-Profile-Id header)
  */
 export async function POST(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);

@@ -8,6 +8,7 @@ export const UpdateUserSchema = z.object({
     .enum(["active", "canceled", "past_due", "inactive"])
     .optional(),
   is_admin: z.boolean().optional(),
+  accessible_profile_ids: z.array(z.string()).nullable().optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;

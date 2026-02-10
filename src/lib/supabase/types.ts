@@ -17,6 +17,7 @@ export interface Database {
           email: string;
           stripe_customer_id: string | null;
           getlate_profile_id: string | null;
+          accessible_profile_ids: string[] | null;
           subscription_status: SubscriptionStatus;
           subscription_id: string | null;
           price_id: string | null;
@@ -30,6 +31,7 @@ export interface Database {
           email: string;
           stripe_customer_id?: string | null;
           getlate_profile_id?: string | null;
+          accessible_profile_ids?: string[] | null;
           subscription_status?: SubscriptionStatus;
           subscription_id?: string | null;
           price_id?: string | null;
@@ -43,6 +45,7 @@ export interface Database {
           email?: string;
           stripe_customer_id?: string | null;
           getlate_profile_id?: string | null;
+          accessible_profile_ids?: string[] | null;
           subscription_status?: SubscriptionStatus;
           subscription_id?: string | null;
           price_id?: string | null;

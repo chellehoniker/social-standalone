@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerAuth } from "./use-server-auth";
+import { fetchWithProfile } from "@/lib/api/fetch-with-profile";
 import type { Platform } from "@/lib/late-api";
 import { isPlatform } from "@/lib/type-guards";
 
@@ -41,7 +42,7 @@ export function useAccounts() {
   return useQuery({
     queryKey: accountKeys.list(),
     queryFn: async () => {
-      const response = await fetch("/api/late/accounts");
+      const response = await fetchWithProfile("/api/late/accounts");
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch accounts");
@@ -64,7 +65,7 @@ export function useAccountsHealth() {
   return useQuery({
     queryKey: accountKeys.health(),
     queryFn: async () => {
-      const response = await fetch("/api/late/accounts/health");
+      const response = await fetchWithProfile("/api/late/accounts/health");
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch account health");
@@ -87,7 +88,7 @@ export function useConnectAccount() {
       if (!isAuthenticated) throw new Error("Not authenticated");
 
       const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/callback`;
-      const response = await fetch(
+      const response = await fetchWithProfile(
         `/api/late/connect/${platform}?redirect_url=${encodeURIComponent(redirectUrl)}`
       );
 
@@ -108,7 +109,7 @@ export function useDeleteAccount() {
 
   return useMutation({
     mutationFn: async (accountId: string) => {
-      const response = await fetch(`/api/late/accounts/${accountId}`, {
+      const response = await fetchWithProfile(`/api/late/accounts/${accountId}`, {
         method: "DELETE",
       });
       if (!response.ok) {

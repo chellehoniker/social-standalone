@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { NextRequest, NextResponse } from "next/server";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
 import { jsonWithCache, CacheDuration } from "@/lib/api/cache";
 
 /**
  * GET /api/late/accounts
- * Returns all accounts for the tenant's profile
+ * Returns all accounts for the tenant's profile (supports multi-profile via X-Profile-Id header)
  */
-export async function GET() {
-  const validation = await validateTenant();
+export async function GET(request: NextRequest) {
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);

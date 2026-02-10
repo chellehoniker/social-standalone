@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 
 /**
  * GET /api/late/posts/[id]
- * Returns a single post
+ * Returns a single post (supports multi-profile via X-Profile-Id header)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },
@@ -45,13 +45,13 @@ export async function GET(
 
 /**
  * PUT /api/late/posts/[id]
- * Updates a post
+ * Updates a post (supports multi-profile via X-Profile-Id header)
  */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },
@@ -93,13 +93,13 @@ export async function PUT(
 
 /**
  * DELETE /api/late/posts/[id]
- * Deletes a post
+ * Deletes a post (supports multi-profile via X-Profile-Id header)
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },

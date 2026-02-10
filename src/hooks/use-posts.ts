@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerAuth } from "./use-server-auth";
+import { fetchWithProfile } from "@/lib/api/fetch-with-profile";
 import type { Platform, PlatformSpecificData } from "@/lib/late-api";
 
 export const postKeys = {
@@ -69,7 +70,7 @@ export function usePosts(filters: PostFilters = {}) {
     queryKey: postKeys.list(filters),
     queryFn: async () => {
       const url = `/api/late/posts${queryString.toString() ? `?${queryString}` : ""}`;
-      const response = await fetch(url);
+      const response = await fetchWithProfile(url);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch posts");
@@ -90,7 +91,7 @@ export function usePost(postId: string) {
   return useQuery({
     queryKey: postKeys.detail(postId),
     queryFn: async () => {
-      const response = await fetch(`/api/late/posts/${postId}`);
+      const response = await fetchWithProfile(`/api/late/posts/${postId}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch post");
@@ -109,7 +110,7 @@ export function useCreatePost() {
 
   return useMutation({
     mutationFn: async (input: CreatePostInput) => {
-      const response = await fetch("/api/late/posts", {
+      const response = await fetchWithProfile("/api/late/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -134,7 +135,7 @@ export function useUpdatePost() {
 
   return useMutation({
     mutationFn: async ({ postId, ...input }: UpdatePostInput) => {
-      const response = await fetch(`/api/late/posts/${postId}`, {
+      const response = await fetchWithProfile(`/api/late/posts/${postId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -160,7 +161,7 @@ export function useDeletePost() {
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      const response = await fetch(`/api/late/posts/${postId}`, {
+      const response = await fetchWithProfile(`/api/late/posts/${postId}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -184,7 +185,7 @@ export function useRetryPost() {
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      const response = await fetch(`/api/late/posts/${postId}/retry`, {
+      const response = await fetchWithProfile(`/api/late/posts/${postId}/retry`, {
         method: "POST",
       });
       if (!response.ok) {

@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { NextRequest, NextResponse } from "next/server";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 
 /**
  * GET /api/late/accounts/health
- * Returns health status for all accounts in the tenant's profile
+ * Returns health status for all accounts in the tenant's profile (supports multi-profile)
  */
-export async function GET() {
-  const validation = await validateTenant();
+export async function GET(request: NextRequest) {
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },

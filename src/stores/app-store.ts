@@ -5,6 +5,10 @@ interface AppState {
   // User preferences
   timezone: string;
 
+  // Profile selection for multi-profile (pen name) support
+  // When null, uses the user's primary getlate_profile_id
+  selectedProfileId: string | null;
+
   // Legacy: Profile ID selection (deprecated in multi-tenant mode)
   // Each user now has exactly one profile, managed by Supabase
   defaultProfileId: string | null;
@@ -14,6 +18,7 @@ interface AppState {
 
   // Actions
   setTimezone: (timezone: string) => void;
+  setSelectedProfileId: (profileId: string | null) => void;
   /** @deprecated Profile is now determined by Supabase user */
   setDefaultProfileId: (profileId: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
@@ -24,10 +29,12 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      selectedProfileId: null,
       defaultProfileId: null,
       sidebarOpen: true,
 
       setTimezone: (timezone) => set({ timezone }),
+      setSelectedProfileId: (profileId) => set({ selectedProfileId: profileId }),
       setDefaultProfileId: (profileId) => set({ defaultProfileId: profileId }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -36,6 +43,7 @@ export const useAppStore = create<AppState>()(
       name: "aa-social-app",
       partialize: (state) => ({
         timezone: state.timezone,
+        selectedProfileId: state.selectedProfileId,
         // Don't persist defaultProfileId - it's determined by Supabase
       }),
     }
