@@ -85,15 +85,7 @@ export async function GET(request: Request) {
       if (existingProfile) {
         // If the profile ID doesn't match the auth user ID, we need to migrate it
         if (existingProfile.id !== data.user.id) {
-          // Delete the temporary profile
-          await serviceClient
-            .from("profiles")
-            .delete()
-            .eq("id", existingProfile.id);
-
-          // Create new profile with correct auth user ID, preserving all data
-          // If grandfathered, override with active status and their GetLate profile
-          await serviceClient.from("profiles").insert({
+          const newProfileData = {
             id: data.user.id,
             email: existingProfile.email,
             stripe_customer_id: existingProfile.stripe_customer_id,
@@ -102,7 +94,32 @@ export async function GET(request: Request) {
             subscription_id: existingProfile.subscription_id,
             price_id: existingProfile.price_id,
             current_period_end: existingProfile.current_period_end,
-          } as never);
+          };
+
+          // Delete temp profile, then insert with real auth user ID
+          await serviceClient
+            .from("profiles")
+            .delete()
+            .eq("id", existingProfile.id);
+
+          const { error: insertError } = await serviceClient
+            .from("profiles")
+            .insert(newProfileData as never);
+
+          if (insertError) {
+            // Recovery: re-create the old profile so data isn't lost
+            logger.error(insertError, { step: "profile_migration_insert", userId: data.user.id });
+            await serviceClient.from("profiles").insert({
+              id: existingProfile.id,
+              email: existingProfile.email,
+              stripe_customer_id: existingProfile.stripe_customer_id,
+              getlate_profile_id: existingProfile.getlate_profile_id,
+              subscription_status: existingProfile.subscription_status,
+              subscription_id: existingProfile.subscription_id,
+              price_id: existingProfile.price_id,
+              current_period_end: existingProfile.current_period_end,
+            } as never);
+          }
         } else if (grandfathered) {
           // Profile exists with correct ID but user is grandfathered - update status
           await serviceClient

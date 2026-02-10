@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Profile } from "@/lib/supabase/types";
-import type { UserFilters, UpdateUserInput } from "@/lib/validations/admin";
+import type { UserFilters, UpdateUserInput, CreateUserInput } from "@/lib/validations/admin";
 
 export const adminKeys = {
   all: ["admin"] as const,
@@ -74,6 +74,33 @@ export function useAdminUser(userId: string) {
       return response.json();
     },
     enabled: !!userId,
+  });
+}
+
+/**
+ * Hook to create a new user
+ */
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateUserInput) => {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create user");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: adminKeys.analytics() });
+    },
   });
 }
 

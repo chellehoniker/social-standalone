@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 
 /**
@@ -7,7 +7,7 @@ import { getLateClient } from "@/lib/late-api";
  * Returns upcoming queue slots preview
  */
 export async function GET(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },

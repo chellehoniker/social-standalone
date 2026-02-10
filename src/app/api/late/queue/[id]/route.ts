@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 
 /**
@@ -10,7 +10,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     return NextResponse.json(
       { error: validation.error },

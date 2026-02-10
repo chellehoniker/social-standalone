@@ -73,17 +73,47 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const supabase = createServiceClient();
 
   // Check if user exists
-  const { data: existingUser } = await supabase
+  const { data: existingUserData } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, email")
     .eq("id", id)
     .single();
+
+  const existingUser = existingUserData as { id: string; email: string } | null;
 
   if (!existingUser) {
     return notFound("User");
   }
 
-  // Update user
+  // If email is being changed, validate and update auth user
+  if (parsed.data.email && parsed.data.email !== existingUser.email) {
+    const { data: emailCheck } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", parsed.data.email)
+      .single();
+
+    if (emailCheck) {
+      return NextResponse.json(
+        { error: "Email already in use by another user" },
+        { status: 409 }
+      );
+    }
+
+    const { error: authError } = await supabase.auth.admin.updateUserById(id, {
+      email: parsed.data.email,
+    });
+
+    if (authError) {
+      console.error("[Admin] Failed to update auth email:", authError);
+      return NextResponse.json(
+        { error: "Failed to update user email" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Update profile
   const { data, error } = await supabase
     .from("profiles")
     .update({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, notFound, badGateway } from "@/lib/api/errors";
 import { lateGuards } from "@/lib/type-guards";
@@ -12,7 +12,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);

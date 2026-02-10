@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTenant, isValidationError } from "@/lib/auth/validate-tenant";
+import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badGateway } from "@/lib/api/errors";
 import { parseRequestBody, PresignRequestSchema } from "@/lib/validations";
@@ -9,7 +9,7 @@ import { parseRequestBody, PresignRequestSchema } from "@/lib/validations";
  * Gets a presigned URL for media upload
  */
 export async function POST(request: NextRequest) {
-  const validation = await validateTenant();
+  const validation = await validateTenantFromRequest(request);
   if (isValidationError(validation)) {
     if (validation.status === 401) return unauthorized(validation.error);
     if (validation.status === 403) return forbidden(validation.error);

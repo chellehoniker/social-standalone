@@ -13,7 +13,7 @@ import {
 import { MoreHorizontal, Pencil, Trash2, Shield } from "lucide-react";
 import { getAvatarUrl } from "@/lib/avatar";
 import type { Profile } from "@/lib/supabase/types";
-import { UserEditDialog } from "./user-edit-dialog";
+import { UserDetailSheet } from "./user-detail-sheet";
 import { DeleteUserDialog } from "./delete-user-dialog";
 
 interface UsersTableProps {
@@ -86,7 +86,8 @@ export function UsersTable({
         {users.map((user) => (
           <div
             key={user.id}
-            className="flex items-center justify-between rounded-lg bg-muted p-3"
+            className="flex items-center justify-between rounded-lg bg-muted p-3 cursor-pointer hover:bg-muted/80 transition-colors"
+            onClick={() => setEditingUser(user)}
           >
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <img
@@ -113,7 +114,12 @@ export function UsersTable({
               {getStatusBadge(user.subscription_status)}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -137,8 +143,8 @@ export function UsersTable({
         ))}
       </div>
 
-      {/* Edit Dialog */}
-      <UserEditDialog
+      {/* Detail Sheet */}
+      <UserDetailSheet
         user={editingUser}
         open={!!editingUser}
         onOpenChange={(open) => !open && setEditingUser(null)}

@@ -11,9 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAdminUsers } from "@/hooks/use-admin";
 import { UsersTable } from "../_components/users-table";
+import { CreateUserDialog } from "../_components/create-user-dialog";
 
 type StatusFilter = "all" | "active" | "canceled" | "past_due" | "inactive";
 
@@ -21,6 +22,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const limit = 20;
 
   const { data, isLoading, refetch } = useAdminUsers({
@@ -44,11 +46,17 @@ export default function AdminUsersPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">User Management</h1>
-        <p className="text-muted-foreground">
-          View and manage all registered users
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">User Management</h1>
+          <p className="text-muted-foreground">
+            View and manage all registered users
+          </p>
+        </div>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create User
+        </Button>
       </div>
 
       {/* Filters */}
@@ -136,6 +144,16 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create User Dialog */}
+      <CreateUserDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSuccess={() => {
+          setShowCreateDialog(false);
+          refetch();
+        }}
+      />
     </div>
   );
 }

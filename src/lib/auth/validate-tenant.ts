@@ -57,9 +57,16 @@ export async function validateTenant(
     return { error: "Profile not found", status: 404 };
   }
 
-  // 3. Check subscription status
+  // 3. Check subscription status and expiration
   if (profile.subscription_status !== "active") {
     return { error: "Subscription inactive", status: 403 };
+  }
+
+  if (profile.current_period_end) {
+    const periodEnd = new Date(profile.current_period_end);
+    if (new Date() > periodEnd) {
+      return { error: "Subscription expired", status: 403 };
+    }
   }
 
   // 4. Determine effective profile ID
@@ -78,10 +85,10 @@ export async function validateTenant(
     if (hasAccess) {
       effectiveProfileId = overrideId;
     } else {
-      // User doesn't have access to requested profile - fall back to primary
       console.warn(
         `[validateTenant] User ${user.id} attempted to access profile ${overrideId} without permission`
       );
+      return { error: "Access denied to requested profile", status: 403 };
     }
   }
 

@@ -1,6 +1,24 @@
 import { z } from "zod";
 
 /**
+ * Schema for creating a user (admin operation)
+ */
+export const CreateUserSchema = z
+  .object({
+    email: z.string().email("Invalid email address"),
+    profile_type: z.enum(["new", "existing", "none"]),
+    existing_profile_id: z.string().optional(),
+    subscription_type: z.enum(["active", "trial", "inactive"]),
+    is_admin: z.boolean().default(false),
+  })
+  .refine(
+    (data) => data.profile_type !== "existing" || data.existing_profile_id,
+    { message: "Profile ID required when using existing profile", path: ["existing_profile_id"] }
+  );
+
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+
+/**
  * Schema for updating a user (admin operation)
  */
 export const UpdateUserSchema = z.object({
@@ -9,6 +27,9 @@ export const UpdateUserSchema = z.object({
     .optional(),
   is_admin: z.boolean().optional(),
   accessible_profile_ids: z.array(z.string()).nullable().optional(),
+  email: z.string().email().optional(),
+  getlate_profile_id: z.string().nullable().optional(),
+  current_period_end: z.string().nullable().optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
