@@ -28,20 +28,30 @@ export async function GET(request: NextRequest) {
   const queueId = searchParams.get("queueId");
   const all = searchParams.get("all") === "true";
 
-  const late = await getLateClient();
-  const { data, error } = await late.queue.listQueueSlots({
-    query: {
-      profileId,
-      queueId: queueId || undefined,
-      all: all || undefined,
-    },
-  });
+  try {
+    const late = await getLateClient();
+    const { data, error } = await late.queue.listQueueSlots({
+      query: {
+        profileId,
+        queueId: queueId || undefined,
+        all: all || undefined,
+      },
+    });
 
-  if (error) {
-    return badGateway("Late API", error);
+    if (error) {
+      return badGateway("Late API", error);
+    }
+
+    return NextResponse.json(data);
+  } catch (err) {
+    // SDK throws LateApiError on 404 when no queue schedule exists
+    const statusCode = (err as { statusCode?: number }).statusCode || 500;
+    if (statusCode === 404) {
+      return NextResponse.json({ slots: [] });
+    }
+    console.error("[queue] Error listing slots:", err);
+    return badGateway("Late API", err);
   }
-
-  return NextResponse.json(data);
 }
 
 /**

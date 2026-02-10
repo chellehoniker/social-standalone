@@ -21,20 +21,33 @@ export async function GET(request: NextRequest) {
     ? parseInt(searchParams.get("count")!)
     : 10;
 
-  const late = await getLateClient();
-  const { data, error } = await late.queue.previewQueue({
-    query: {
-      profileId,
-      count,
-    },
-  });
+  try {
+    const late = await getLateClient();
+    const { data, error } = await late.queue.previewQueue({
+      query: {
+        profileId,
+        count,
+      },
+    });
 
-  if (error) {
+    if (error) {
+      return NextResponse.json(
+        { error: "Failed to fetch queue preview" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (err) {
+    // SDK throws LateApiError on 404 when no queue schedule exists
+    const statusCode = (err as { statusCode?: number }).statusCode || 500;
+    if (statusCode === 404) {
+      return NextResponse.json({ slots: [] });
+    }
+    console.error("[queue/preview] Error:", err);
     return NextResponse.json(
       { error: "Failed to fetch queue preview" },
-      { status: 500 }
+      { status: statusCode }
     );
   }
-
-  return NextResponse.json(data);
 }
