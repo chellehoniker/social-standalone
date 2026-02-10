@@ -199,9 +199,7 @@ export default function CalendarPage() {
               currentDate={currentDate}
               posts={posts}
               onPostClick={setSelectedPostId}
-              onDayClick={(date) => {
-                console.log("Day clicked:", date);
-              }}
+              onDayClick={() => {}}
             />
           ) : (
             <CalendarList

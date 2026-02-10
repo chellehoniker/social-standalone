@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,18 +20,31 @@ import { Loader2, Mail } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, isLoading: authLoading, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const hasTriedSignOut = useRef(false);
 
-  // Redirect authenticated users to dashboard
+  // If user lands on /login with an error param while "authenticated",
+  // their session is stale — sign them out to break the redirect loop
+  const errorParam = searchParams.get("error");
+
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    if (!authLoading && isAuthenticated && errorParam && !hasTriedSignOut.current) {
+      hasTriedSignOut.current = true;
+      signOut();
+    }
+  }, [authLoading, isAuthenticated, errorParam, signOut]);
+
+  // Redirect authenticated users to dashboard (only if no error param)
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && !errorParam) {
       router.push("/dashboard");
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [isAuthenticated, authLoading, router, errorParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,8 +75,8 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading while auth state resolves
-  if (authLoading || isAuthenticated) {
+  // Show loading while auth state resolves (but not if we're clearing a stale session)
+  if (authLoading || (isAuthenticated && !errorParam)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

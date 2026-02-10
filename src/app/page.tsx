@@ -43,8 +43,8 @@ export default function LandingPage() {
     return null;
   }
 
-  // Show loading state while auth is resolving
-  if (isLoading) {
+  // Show loading state while auth is resolving or redirecting to dashboard
+  if (isLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>

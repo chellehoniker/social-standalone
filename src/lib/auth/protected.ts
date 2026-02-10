@@ -20,7 +20,7 @@ export async function requireAuth(): Promise<User> {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect("/login");
+    redirect("/login?error=session_expired");
   }
 
   return user;
