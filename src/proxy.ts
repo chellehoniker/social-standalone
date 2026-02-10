@@ -1,8 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PROTECTED_PATHS = ["/dashboard", "/callback"];
+const AUTH_PATHS = ["/login"];
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
 
   try {
     const supabase = createServerClient(
@@ -26,13 +30,31 @@ export async function proxy(request: NextRequest) {
       }
     );
 
-    // Refresh session if expired — 5s timeout to prevent hanging
-    await Promise.race([
+    // Refresh session — 5s timeout to prevent hanging
+    const result = await Promise.race([
       supabase.auth.getUser(),
-      new Promise((_, reject) =>
+      new Promise<{ data: { user: null }; error: Error }>((_, reject) =>
         setTimeout(() => reject(new Error("Auth refresh timeout")), 5000)
       ),
     ]);
+
+    const user = result?.data?.user ?? null;
+    const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
+    const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
+
+    // Redirect unauthenticated users away from protected routes
+    if (isProtected && !user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
+    // Redirect authenticated users away from login page to dashboard
+    if (isAuthPage && user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   } catch {
     // Don't let auth refresh errors block page loads
   }

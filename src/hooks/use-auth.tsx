@@ -38,7 +38,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
-    let hasResolved = false;
     const supabase = createClient();
 
     const fetchProfile = async (userId: string): Promise<Profile | null> => {
@@ -65,16 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const handleAuthChange = async (session: Session | null) => {
+    const resolveAuth = async (user: User | null, session: Session | null) => {
       if (!isMounted) return;
-      hasResolved = true;
 
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
+      if (user && session) {
+        const profile = await fetchProfile(user.id);
         if (!isMounted) return;
 
         setState({
-          user: session.user,
+          user,
           session,
           profile,
           isLoading: false,
@@ -91,31 +89,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Subscribe to auth changes - this will fire INITIAL_SESSION immediately
+    // 1. Initialize auth state with getUser() first (like StorytellerOS)
+    //    This guarantees we resolve initial state without relying on events
+    const initAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        await resolveAuth(user, session);
+      } catch {
+        if (isMounted) {
+          setState({
+            user: null,
+            session: null,
+            profile: null,
+            isLoading: false,
+            isAuthenticated: false,
+          });
+        }
+      }
+    };
+
+    initAuth();
+
+    // 2. Then subscribe to auth changes for subsequent events (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Auth state changed
-        await handleAuthChange(session);
+      async (_event, session) => {
+        await resolveAuth(session?.user ?? null, session);
       }
     );
 
-    // Timeout fallback - if auth doesn't resolve in 3 seconds, assume not authenticated
-    const timeout = setTimeout(() => {
-      if (!hasResolved && isMounted) {
-        console.warn("[AuthProvider] Auth check timed out, assuming not authenticated");
-        setState({
-          user: null,
-          session: null,
-          profile: null,
-          isLoading: false,
-          isAuthenticated: false,
-        });
-      }
-    }, 3000);
-
     return () => {
       isMounted = false;
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
