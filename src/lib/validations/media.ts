@@ -33,7 +33,7 @@ export const PresignRequestSchema = z.object({
     .string()
     .min(1, "Filename is required")
     .max(255, "Filename too long")
-    .regex(/^[\w\-. ]+$/, "Invalid filename characters"),
+    .regex(/^[^/\\<>:"|?*\x00-\x1f]+$/, "Invalid filename characters"),
   contentType: z.enum(ALLOWED_MEDIA_TYPES, {
     error: "Unsupported media type. Allowed types: JPEG, PNG, GIF, WebP, MP4, MOV, WebM",
   }),
