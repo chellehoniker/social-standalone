@@ -118,7 +118,24 @@ export function useDeleteAccount() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onMutate: async (accountId) => {
+      // Cancel outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: accountKeys.list() });
+      const previous = queryClient.getQueryData(accountKeys.list());
+      // Optimistically remove the account from the cache
+      queryClient.setQueryData(accountKeys.list(), (old: any) => {
+        if (!old?.accounts) return old;
+        return { ...old, accounts: old.accounts.filter((a: any) => a._id !== accountId) };
+      });
+      return { previous };
+    },
+    onError: (_err, _accountId, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(accountKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.all });
     },
   });

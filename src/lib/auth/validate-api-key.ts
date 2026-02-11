@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
 import { hashApiKey, isValidApiKeyFormat } from "./api-keys";
@@ -46,6 +47,14 @@ export async function validateApiKey(
   }
 
   const profile = data as Profile;
+
+  // Constant-time comparison to prevent timing attacks
+  if (
+    !profile.api_key_hash ||
+    !timingSafeEqual(Buffer.from(hash), Buffer.from(profile.api_key_hash))
+  ) {
+    return { error: "Invalid API key", status: 401 };
+  }
 
   // 3. Check subscription status
   if (profile.subscription_status !== "active") {

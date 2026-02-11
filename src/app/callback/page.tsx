@@ -80,6 +80,24 @@ export default async function CallbackPage({
       }
     }
 
+    // userProfile is also double-URL-encoded — decode the same way
+    let decodedUserProfile = getString("userProfile");
+    if (decodedUserProfile) {
+      try {
+        // Verify it's valid JSON after decoding (searchParams decoded once, decode again)
+        const parsed = JSON.parse(decodeURIComponent(decodedUserProfile));
+        decodedUserProfile = JSON.stringify(parsed);
+      } catch {
+        try {
+          // Try without extra decode in case searchParams already fully decoded
+          JSON.parse(decodedUserProfile);
+          // Already valid JSON, keep as-is
+        } catch {
+          // Leave as-is, select-entity will handle gracefully
+        }
+      }
+    }
+
     return (
       <Suspense fallback={<Loading />}>
         <CallbackEntitySelection
@@ -89,7 +107,7 @@ export default async function CallbackPage({
           tempToken={getString("tempToken")}
           connectToken={getString("connect_token")}
           pendingDataToken={getString("pendingDataToken")}
-          userProfile={getString("userProfile")}
+          userProfile={decodedUserProfile}
           urlEntities={urlEntities}
         />
       </Suspense>

@@ -119,15 +119,19 @@ export function CallbackEntitySelection({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to select entity");
+        const errorData = await response.json().catch(() => null);
+        const errorMsg = errorData?.error || `Server error (${response.status})`;
+        console.error("Entity select API error:", response.status, errorData);
+        throw new Error(errorMsg);
       }
 
       setStatus("success");
       toast.success("Account connected successfully!");
-      setTimeout(() => router.push("/dashboard/accounts"), 1500);
+      setTimeout(() => router.push("/dashboard/accounts?connected=" + encodeURIComponent(platform)), 1500);
     } catch (err) {
       console.error("Entity select error:", err);
-      setError("Failed to complete connection. Please try again.");
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(`Failed to complete connection: ${message}`);
       setStatus("error");
     }
   };

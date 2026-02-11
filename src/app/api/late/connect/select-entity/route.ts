@@ -5,7 +5,7 @@ import { getLateClient } from "@/lib/late-api";
 /**
  * POST /api/late/connect/select-entity
  * Selects an entity (page, organization, board, location) to complete OAuth connection.
- * Called by callback-client.tsx after user selects an entity from the list.
+ * Called by callback-entity-selection.tsx after user selects an entity from the list.
  */
 export async function POST(request: NextRequest) {
   const validation = await validateTenantFromRequest(request);

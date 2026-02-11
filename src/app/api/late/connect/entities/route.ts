@@ -5,7 +5,7 @@ import { getLateClient } from "@/lib/late-api";
 /**
  * GET /api/late/connect/entities
  * Lists entities (pages, organizations, boards, locations) for platform OAuth entity selection.
- * Called by callback-client.tsx after OAuth redirect for platforms requiring entity selection.
+ * Called by callback-entity-selection.tsx after OAuth redirect for platforms requiring entity selection.
  */
 export async function GET(request: NextRequest) {
   const validation = await validateTenantFromRequest(request);
