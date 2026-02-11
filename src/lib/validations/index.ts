@@ -8,6 +8,7 @@ export * from "./post";
 export * from "./queue";
 export * from "./media";
 export * from "./stripe";
+export * from "./support";
 
 import { z } from "zod/v4";
 import { badRequest } from "@/lib/api/errors";

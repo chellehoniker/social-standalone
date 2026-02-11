@@ -7,10 +7,50 @@ export type Json =
   | Json[];
 
 export type SubscriptionStatus = "active" | "canceled" | "past_due" | "inactive";
+export type TicketCategory = "bug" | "feature" | "general";
+export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export interface Database {
   public: {
     Tables: {
+      support_tickets: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          category: TicketCategory;
+          subject: string;
+          description: string;
+          status: TicketStatus;
+          admin_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          category: TicketCategory;
+          subject: string;
+          description: string;
+          status?: TicketStatus;
+          admin_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string;
+          category?: TicketCategory;
+          subject?: string;
+          description?: string;
+          status?: TicketStatus;
+          admin_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       profiles: {
         Row: {
           id: string;
@@ -73,3 +113,7 @@ export interface Database {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
 export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+
+export type SupportTicket = Database["public"]["Tables"]["support_tickets"]["Row"];
+export type SupportTicketInsert = Database["public"]["Tables"]["support_tickets"]["Insert"];
+export type SupportTicketUpdate = Database["public"]["Tables"]["support_tickets"]["Update"];

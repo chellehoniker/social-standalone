@@ -94,8 +94,13 @@ export default function SettingsPage() {
     }
   };
 
+  const isGrandfathered = !profile.price_id && profile.subscription_status === "active";
+
   // Get plan name from price ID
   const getPlanName = (priceId: string | null | undefined) => {
+    if (!priceId && profile.subscription_status === "active") {
+      return "Founding Member";
+    }
     if (priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL) {
       return "Annual Plan";
     }
@@ -142,7 +147,11 @@ export default function SettingsPage() {
               <span className="font-medium">{getPlanName(profile.price_id)}</span>
               {getStatusBadge(profile.subscription_status)}
             </div>
-            {profile.current_period_end && (
+            {isGrandfathered ? (
+              <div className="text-sm text-muted-foreground">
+                Your account has lifetime access. No billing required.
+              </div>
+            ) : profile.current_period_end ? (
               <div className="text-sm text-muted-foreground">
                 {profile.subscription_status === "canceled" ? (
                   <>Access until {formatBillingDate(profile.current_period_end)}</>
@@ -150,26 +159,28 @@ export default function SettingsPage() {
                   <>Next billing date: {formatBillingDate(profile.current_period_end)}</>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
 
-          <Button
-            variant="outline"
-            onClick={handleManageSubscription}
-            disabled={isManagingSubscription}
-          >
-            {isManagingSubscription ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Opening...
-              </>
-            ) : (
-              <>
-                Manage Subscription
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
+          {!isGrandfathered && (
+            <Button
+              variant="outline"
+              onClick={handleManageSubscription}
+              disabled={isManagingSubscription}
+            >
+              {isManagingSubscription ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Opening...
+                </>
+              ) : (
+                <>
+                  Manage Subscription
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -297,10 +308,10 @@ export default function SettingsPage() {
             </p>
             <p className="mt-2">
               <a
-                href="mailto:support@authorautomations.com"
+                href="/dashboard/support"
                 className="underline underline-offset-4 hover:text-foreground"
               >
-                Contact Support
+                Help &amp; Support
               </a>
             </p>
           </div>

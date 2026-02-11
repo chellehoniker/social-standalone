@@ -30,6 +30,7 @@ import {
   Sun,
   LogOut,
   Shield,
+  HelpCircle,
 } from "lucide-react";
 
 const ADMIN_EMAIL = "chelle@atheniacreative.com";
@@ -128,6 +129,20 @@ export function DashboardShell({
           </div>
 
           <Separator className="my-3" />
+
+          {/* Help & Support */}
+          <Link
+            href="/dashboard/support"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              pathname === "/dashboard/support"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            <span>Help & Support</span>
+          </Link>
 
           {/* Settings */}
           <Link
