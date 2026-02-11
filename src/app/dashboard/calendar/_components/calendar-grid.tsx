@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { format } from "date-fns/format";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
@@ -43,6 +43,7 @@ interface CalendarGridProps {
   posts: Post[];
   onPostClick: (postId: string) => void;
   onDayClick: (date: Date) => void;
+  onPostReschedule?: (postId: string, newScheduledFor: string) => void;
 }
 
 export function CalendarGrid({
@@ -50,7 +51,57 @@ export function CalendarGrid({
   posts,
   onPostClick,
   onDayClick,
+  onPostReschedule,
 }: CalendarGridProps) {
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, postId: string, scheduledFor: string) => {
+      e.dataTransfer.setData("postId", postId);
+      e.dataTransfer.setData("scheduledFor", scheduledFor);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    []
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, dateKey: string) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDragOverDate(dateKey);
+    },
+    []
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverDate(null);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetDateKey: string) => {
+      e.preventDefault();
+      setDragOverDate(null);
+
+      const postId = e.dataTransfer.getData("postId");
+      const originalScheduledFor = e.dataTransfer.getData("scheduledFor");
+      if (!postId || !originalScheduledFor || !onPostReschedule) return;
+
+      // Preserve original time, change only the date
+      const originalDate = new Date(originalScheduledFor);
+      const [year, month, day] = targetDateKey.split("-").map(Number);
+      const newDate = new Date(originalDate);
+      newDate.setFullYear(year, month - 1, day);
+
+      const newScheduledFor = newDate.toISOString();
+
+      // Skip if dropped on the same day
+      if (format(originalDate, "yyyy-MM-dd") === targetDateKey) return;
+
+      onPostReschedule(postId, newScheduledFor);
+    },
+    [onPostReschedule]
+  );
+
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -103,12 +154,16 @@ export function CalendarGrid({
               <div
                 key={dateKey}
                 onClick={() => onDayClick(day)}
+                onDragOver={(e) => handleDragOver(e, dateKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, dateKey)}
                 className={cn(
                   "min-h-20 cursor-pointer border-b border-r border-border p-1 transition-colors hover:bg-accent/50 sm:min-h-24",
                   index % 7 === 6 && "border-r-0",
                   index >= days.length - 7 && "border-b-0",
                   !isCurrentMonth && "bg-muted/30",
-                  isCurrentMonth && isWeekend(day) && "bg-muted/20 dark:bg-muted/10"
+                  isCurrentMonth && isWeekend(day) && "bg-muted/20 dark:bg-muted/10",
+                  dragOverDate === dateKey && "ring-2 ring-primary ring-inset bg-primary/10"
                 )}
               >
                 <div className="flex items-center justify-between">
@@ -130,16 +185,25 @@ export function CalendarGrid({
 
                 {/* Post previews */}
                 <div className="mt-1 space-y-1">
-                  {dayPosts.slice(0, 2).map((post) => (
+                  {dayPosts.slice(0, 2).map((post) => {
+                    const isDraggable = post.status === "scheduled" && !!onPostReschedule;
+                    return (
                     <button
                       key={post._id}
+                      draggable={isDraggable}
+                      onDragStart={
+                        isDraggable && post.scheduledFor
+                          ? (e) => handleDragStart(e, post._id, post.scheduledFor!)
+                          : undefined
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         onPostClick(post._id);
                       }}
                       className={cn(
                         "flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] transition-colors sm:gap-1.5 sm:px-1.5 sm:py-1 sm:text-xs",
-                        getStatusStyles(post.status)
+                        getStatusStyles(post.status),
+                        isDraggable && "cursor-grab active:cursor-grabbing"
                       )}
                     >
                       {post.mediaItems?.[0] && (
@@ -151,7 +215,8 @@ export function CalendarGrid({
                       )}
                       <span className="flex-1 truncate">{post.content || "(No content)"}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                   {dayPosts.length > 2 && (
                     <p className="px-1 text-[10px] text-muted-foreground sm:text-xs">
                       +{dayPosts.length - 2} more

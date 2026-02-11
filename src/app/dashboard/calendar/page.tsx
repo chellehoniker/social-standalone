@@ -7,7 +7,7 @@ import { addMonths } from "date-fns/addMonths";
 import { subMonths } from "date-fns/subMonths";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
-import { useCalendarPosts, useDeletePost } from "@/hooks";
+import { useCalendarPosts, useDeletePost, useUpdatePost } from "@/hooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +56,7 @@ export default function CalendarPage() {
   }, []);
 
   const deleteMutation = useDeletePost();
+  const updateMutation = useUpdatePost();
 
   // Fetch posts for the current month (with buffer for edge days)
   const dateFrom = format(subMonths(startOfMonth(currentDate), 1), "yyyy-MM-dd");
@@ -72,6 +73,15 @@ export default function CalendarPage() {
   const handlePrevMonth = () => setCurrentDate((d) => subMonths(d, 1));
   const handleNextMonth = () => setCurrentDate((d) => addMonths(d, 1));
   const handleToday = () => setCurrentDate(new Date());
+
+  const handleReschedule = async (postId: string, newScheduledFor: string) => {
+    try {
+      await updateMutation.mutateAsync({ postId, scheduledFor: newScheduledFor });
+      toast.success("Post rescheduled");
+    } catch {
+      toast.error("Failed to reschedule post");
+    }
+  };
 
   const handleDelete = async () => {
     if (!postToDelete) return;
@@ -187,7 +197,7 @@ export default function CalendarPage() {
           </CardTitle>
           <CardDescription>
             {viewMode === "grid"
-              ? "Click on a post to view details or a day to create a new post."
+              ? "Click a post to view details. Drag a scheduled post to reschedule it."
               : "Tap a post to view details."}
           </CardDescription>
         </CardHeader>
@@ -200,6 +210,7 @@ export default function CalendarPage() {
               posts={posts}
               onPostClick={setSelectedPostId}
               onDayClick={() => {}}
+              onPostReschedule={handleReschedule}
             />
           ) : (
             <CalendarList
