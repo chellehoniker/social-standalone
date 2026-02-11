@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey, isApiKeyError } from "@/lib/auth/validate-api-key";
 import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { getLateClient } from "@/lib/late-api";
-import { parseRequestBody, CreatePostSchema } from "@/lib/validations";
+import { parseRequestBody, ExternalCreatePostSchema } from "@/lib/validations";
 import {
   unauthorized,
   forbidden,
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/v1/posts
  * Create a new post.
- * Body: { content, accountIds, scheduledAt?, useQueue?, mediaItems?, platformData? }
+ * Body: { content, accountIds, scheduledAt?, publishNow?, mediaItems?, timezone? }
  */
 export async function POST(request: NextRequest) {
   const validation = await validateApiKey(request);
@@ -87,14 +87,19 @@ export async function POST(request: NextRequest) {
 
   const { profileId } = validation;
 
-  const parsed = await parseRequestBody(request, CreatePostSchema);
+  const parsed = await parseRequestBody(request, ExternalCreatePostSchema);
   if (!parsed.success) return parsed.response;
+
+  // Transform simplified external format to GetLate API shape
+  const { accountIds, scheduledAt, ...rest } = parsed.data;
 
   try {
     const late = await getLateClient();
     const { data, error } = await late.posts.createPost({
       body: {
-        ...parsed.data,
+        ...rest,
+        platforms: accountIds.map((accountId) => ({ accountId })),
+        scheduledFor: scheduledAt,
         profileId,
       },
     });
