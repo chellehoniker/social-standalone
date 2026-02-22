@@ -10,30 +10,24 @@ import { eachDayOfInterval } from "date-fns/eachDayOfInterval";
 import { isSameMonth } from "date-fns/isSameMonth";
 import { parseISO } from "date-fns/parseISO";
 import { isToday } from "date-fns/isToday";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+import { getAccountColor, getAccountColorWithAlpha } from "@/lib/account-colors";
 
 interface Post {
   _id: string;
   content: string;
   scheduledFor?: string;
   status: string;
-  platforms: Array<{ platform: string }>;
+  platforms: Array<{ platform: string; accountId?: string }>;
   mediaItems?: Array<{ type: "image" | "video"; url: string }>;
 }
 
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case 'scheduled':
-      return 'bg-blue-50 dark:bg-blue-950/30 border-l-2 border-l-blue-500 hover:bg-blue-100 dark:hover:bg-blue-950/50';
-    case 'published':
-      return 'bg-green-50 dark:bg-green-950/30 border-l-2 border-l-green-500 hover:bg-green-100 dark:hover:bg-green-950/50';
-    case 'failed':
-      return 'bg-red-50 dark:bg-red-950/30 border-l-2 border-l-red-500 hover:bg-red-100 dark:hover:bg-red-950/50';
-    case 'publishing':
-      return 'bg-yellow-50 dark:bg-yellow-950/30 border-l-2 border-l-yellow-500';
-    default:
-      return 'bg-muted hover:bg-muted/80';
-  }
+const STATUS_DOT_COLORS: Record<string, string> = {
+  scheduled: "bg-blue-500",
+  published: "bg-green-500",
+  failed: "bg-red-500",
+  publishing: "bg-yellow-500",
 };
 
 const isWeekend = (date: Date) => [0, 6].includes(date.getDay());
@@ -53,6 +47,8 @@ export function CalendarGrid({
   onDayClick,
   onPostReschedule,
 }: CalendarGridProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const handleDragStart = useCallback(
@@ -187,6 +183,13 @@ export function CalendarGrid({
                 <div className="mt-1 space-y-1">
                   {dayPosts.slice(0, 2).map((post) => {
                     const isDraggable = post.status === "scheduled" && !!onPostReschedule;
+                    const accountId = post.platforms[0]?.accountId;
+                    const postStyle = accountId
+                      ? {
+                          backgroundColor: getAccountColorWithAlpha(accountId, isDark, 0.1),
+                          borderLeftColor: getAccountColor(accountId, isDark),
+                        }
+                      : undefined;
                     return (
                     <button
                       key={post._id}
@@ -201,11 +204,18 @@ export function CalendarGrid({
                         onPostClick(post._id);
                       }}
                       className={cn(
-                        "flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] transition-colors sm:gap-1.5 sm:px-1.5 sm:py-1 sm:text-xs",
-                        getStatusStyles(post.status),
+                        "relative flex w-full items-center gap-1 rounded border-l-2 px-1 py-0.5 text-left text-[10px] transition-colors sm:gap-1.5 sm:px-1.5 sm:py-1 sm:text-xs",
+                        !accountId && "bg-muted hover:bg-muted/80 border-l-muted-foreground",
                         isDraggable && "cursor-grab active:cursor-grabbing"
                       )}
+                      style={postStyle}
                     >
+                      <span
+                        className={cn(
+                          "absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full",
+                          STATUS_DOT_COLORS[post.status] || "bg-muted-foreground"
+                        )}
+                      />
                       {post.mediaItems?.[0] && (
                         <img
                           src={post.mediaItems[0].url}
@@ -213,7 +223,7 @@ export function CalendarGrid({
                           className="h-3 w-3 rounded object-cover flex-shrink-0 sm:h-4 sm:w-4"
                         />
                       )}
-                      <span className="flex-1 truncate">{post.content || "(No content)"}</span>
+                      <span className="flex-1 truncate pr-2">{post.content || "(No content)"}</span>
                     </button>
                     );
                   })}

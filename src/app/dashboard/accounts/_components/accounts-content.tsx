@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AccountAvatar } from "@/components/accounts";
+import { StandaloneProfileSwitcher } from "@/components/profile-switcher-standalone";
 import { ConnectPlatformGrid } from "./connect-platform-grid";
 import { PLATFORM_NAMES, type Platform } from "@/lib/late-api";
 import { Users, Plus, Loader2, AlertCircle, RefreshCw, Trash2 } from "lucide-react";
@@ -97,11 +98,14 @@ export function AccountsContent() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Accounts</h1>
-        <p className="text-muted-foreground">
-          Manage your connected social media accounts.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">Accounts</h1>
+          <p className="text-muted-foreground">
+            Manage your connected social media accounts.
+          </p>
+        </div>
+        <StandaloneProfileSwitcher />
       </div>
 
       {/* Connected Accounts */}

@@ -8,9 +8,11 @@ import { endOfMonth } from "date-fns/endOfMonth";
 import { isToday } from "date-fns/isToday";
 import { isTomorrow } from "date-fns/isTomorrow";
 import { isYesterday } from "date-fns/isYesterday";
+import { useTheme } from "next-themes";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { PostStatusBadge } from "@/components/posts";
 import { cn } from "@/lib/utils";
+import { getAccountColor } from "@/lib/account-colors";
 import type { Platform } from "@/lib/late-api";
 import { Clock, Video } from "lucide-react";
 
@@ -19,7 +21,7 @@ interface Post {
   content: string;
   scheduledFor?: string;
   status: "draft" | "scheduled" | "publishing" | "published" | "failed";
-  platforms: Array<{ platform: string }>;
+  platforms: Array<{ platform: string; accountId?: string }>;
   mediaItems?: Array<{ type: "image" | "video"; url: string }>;
 }
 
@@ -41,6 +43,8 @@ export function CalendarList({
   posts,
   onPostClick,
 }: CalendarListProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   // Group posts by date, filtered to current month
   const groupedPosts = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -119,11 +123,17 @@ export function CalendarList({
 
           {/* Posts for this day */}
           <div className="divide-y divide-border/50">
-            {dayPosts.map((post) => (
+            {dayPosts.map((post) => {
+              const accountId = post.platforms[0]?.accountId;
+              const borderColor = accountId
+                ? getAccountColor(accountId, isDark)
+                : undefined;
+              return (
               <button
                 key={post._id}
                 onClick={() => onPostClick(post._id)}
-                className="flex w-full gap-3 p-4 text-left transition-colors hover:bg-accent/50 active:bg-accent"
+                className="flex w-full gap-3 border-l-3 p-4 text-left transition-colors hover:bg-accent/50 active:bg-accent"
+                style={borderColor ? { borderLeftColor: borderColor } : { borderLeftColor: "transparent" }}
               >
                 {/* Thumbnail - only show if media exists */}
                 {post.mediaItems?.[0] && (
@@ -181,7 +191,8 @@ export function CalendarList({
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
