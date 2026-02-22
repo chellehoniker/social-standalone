@@ -22,7 +22,16 @@ import {
   Image as ImageIcon,
   Video,
   ExternalLink,
+  EyeOff,
 } from "lucide-react";
+
+const UNPUBLISH_UNSUPPORTED: Platform[] = ["instagram", "tiktok"];
+
+function canUnpublish(platforms: Array<{ platform: string }>): boolean {
+  return platforms.some(
+    (p) => !UNPUBLISH_UNSUPPORTED.includes(p.platform as Platform)
+  );
+}
 
 interface Post {
   _id: string;
@@ -44,6 +53,7 @@ interface PostCardProps {
   onEdit?: (postId: string) => void;
   onDelete?: (postId: string) => void;
   onRetry?: (postId: string) => void;
+  onUnpublish?: (postId: string) => void;
   compact?: boolean;
 }
 
@@ -52,6 +62,7 @@ export function PostCard({
   onEdit,
   onDelete,
   onRetry,
+  onUnpublish,
   compact = false,
 }: PostCardProps) {
   const hasMedia = post.mediaItems && post.mediaItems.length > 0;
@@ -122,7 +133,7 @@ export function PostCard({
         )}
 
         {/* Actions */}
-        {(onEdit || onDelete || onRetry) && (
+        {(onEdit || onDelete || onRetry || onUnpublish) && (
           <div className="mt-3 flex items-center justify-end gap-2">
             {post.status === "failed" && onRetry && (
               <Button variant="outline" size="sm" onClick={() => onRetry(post._id)}>
@@ -155,6 +166,14 @@ export function PostCard({
                     </a>
                   </DropdownMenuItem>
                 )}
+                {onUnpublish &&
+                  post.status === "published" &&
+                  canUnpublish(post.platforms) && (
+                    <DropdownMenuItem onClick={() => onUnpublish(post._id)}>
+                      <EyeOff className="mr-2 h-4 w-4" />
+                      Unpublish
+                    </DropdownMenuItem>
+                  )}
                 {onDelete && (
                   <DropdownMenuItem
                     onClick={() => onDelete(post._id)}

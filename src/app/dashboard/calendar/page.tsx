@@ -7,7 +7,7 @@ import { addMonths } from "date-fns/addMonths";
 import { subMonths } from "date-fns/subMonths";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
-import { useCalendarPosts, useDeletePost, useUpdatePost } from "@/hooks";
+import { useCalendarPosts, useDeletePost, useUpdatePost, useUnpublishPost } from "@/hooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { PostCard } from "@/components/posts";
+import { StandaloneProfileSwitcher } from "@/components/profile-switcher-standalone";
+import { AccountFilter } from "./_components/account-filter";
 import { CalendarGrid } from "./_components/calendar-grid";
 import { CalendarList } from "./_components/calendar-list";
 import {
@@ -48,6 +50,7 @@ export default function CalendarPage() {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [filterAccountIds, setFilterAccountIds] = useState<string[]>([]);
 
   // Default to list on mobile, grid on desktop
   useEffect(() => {
@@ -57,6 +60,7 @@ export default function CalendarPage() {
 
   const deleteMutation = useDeletePost();
   const updateMutation = useUpdatePost();
+  const unpublishMutation = useUnpublishPost();
 
   // Fetch posts for the current month (with buffer for edge days)
   const dateFrom = format(subMonths(startOfMonth(currentDate), 1), "yyyy-MM-dd");
@@ -64,6 +68,13 @@ export default function CalendarPage() {
 
   const { data: postsData, isLoading } = useCalendarPosts(dateFrom, dateTo);
   const posts = useMemo(() => (postsData?.posts || []) as any[], [postsData?.posts]);
+
+  const filteredPosts = useMemo(() => {
+    if (filterAccountIds.length === 0) return posts;
+    return posts.filter((p: any) =>
+      p.platforms?.some((pl: any) => filterAccountIds.includes(pl.accountId))
+    );
+  }, [posts, filterAccountIds]);
 
   const selectedPost = useMemo(
     () => posts.find((p: any) => p._id === selectedPostId),
@@ -83,6 +94,16 @@ export default function CalendarPage() {
     }
   };
 
+  const handleUnpublish = async (postId: string) => {
+    try {
+      await unpublishMutation.mutateAsync(postId);
+      toast.success("Post unpublished from platform");
+      setSelectedPostId(null);
+    } catch {
+      toast.error("Failed to unpublish post");
+    }
+  };
+
   const handleDelete = async () => {
     if (!postToDelete) return;
     try {
@@ -95,16 +116,16 @@ export default function CalendarPage() {
     }
   };
 
-  // Stats for the month
+  // Stats for the month (reflect active filter)
   const monthPosts = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
-    return posts.filter((p: any) => {
+    return filteredPosts.filter((p: any) => {
       if (!p.scheduledFor) return false;
       const postDate = new Date(p.scheduledFor);
       return postDate >= monthStart && postDate <= monthEnd;
     });
-  }, [posts, currentDate]);
+  }, [filteredPosts, currentDate]);
 
   const scheduledCount = useMemo(
     () => monthPosts.filter((p: any) => p.status === "scheduled").length,
@@ -118,11 +139,14 @@ export default function CalendarPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Calendar</h1>
-        <p className="text-muted-foreground">
-          View and manage your scheduled posts.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">Calendar</h1>
+          <p className="text-muted-foreground">
+            View and manage your scheduled posts.
+          </p>
+        </div>
+        <StandaloneProfileSwitcher />
       </div>
 
       {/* Month Navigation */}
@@ -184,6 +208,12 @@ export default function CalendarPage() {
         </CardContent>
       </Card>
 
+      {/* Account Filter */}
+      <AccountFilter
+        filterAccountIds={filterAccountIds}
+        onFilterChange={setFilterAccountIds}
+      />
+
       {/* Calendar Content */}
       <Card>
         <CardHeader className="pb-3">
@@ -207,7 +237,7 @@ export default function CalendarPage() {
           ) : viewMode === "grid" ? (
             <CalendarGrid
               currentDate={currentDate}
-              posts={posts}
+              posts={filteredPosts}
               onPostClick={setSelectedPostId}
               onDayClick={() => {}}
               onPostReschedule={handleReschedule}
@@ -215,7 +245,7 @@ export default function CalendarPage() {
           ) : (
             <CalendarList
               currentDate={currentDate}
-              posts={posts}
+              posts={filteredPosts}
               onPostClick={setSelectedPostId}
             />
           )}
@@ -240,6 +270,7 @@ export default function CalendarPage() {
               onDelete={(id) => {
                 setPostToDelete(id);
               }}
+              onUnpublish={handleUnpublish}
             />
           )}
         </DialogContent>

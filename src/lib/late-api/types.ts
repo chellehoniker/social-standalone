@@ -139,15 +139,24 @@ export interface PinterestPlatformData {
   link?: string;
 }
 
+export interface InstagramUserTag {
+  username: string;
+  x: number;
+  y: number;
+  mediaIndex?: number;
+}
+
 export interface InstagramPlatformData {
   contentType?: "story";
   shareToFeed?: boolean;
   collaborators?: string[];
   thumbOffset?: number;
+  userTags?: InstagramUserTag[];
 }
 
 export interface FacebookPlatformData {
-  contentType?: "story";
+  contentType?: "story" | "reel";
+  title?: string;
   firstComment?: string;
 }
 
@@ -161,6 +170,7 @@ export interface GoogleBusinessPlatformData {
     type: string;
     url: string;
   };
+  languageCode?: string;
 }
 
 export interface TelegramPlatformData {

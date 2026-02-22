@@ -202,6 +202,30 @@ export function useRetryPost() {
 }
 
 /**
+ * Hook to unpublish a published post (removes from platform, keeps Late record)
+ */
+export function useUnpublishPost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const response = await fetchWithProfile(`/api/late/posts/${postId}/unpublish`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to unpublish post");
+      }
+      return response.json();
+    },
+    onSuccess: (_, postId) => {
+      queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
+      queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+    },
+  });
+}
+
+/**
  * Hook to fetch posts for calendar view (by date range)
  */
 export function useCalendarPosts(dateFrom: string, dateTo: string) {

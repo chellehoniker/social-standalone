@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useCreatePost, useAccounts, useCurrentProfileId, type UploadedMedia } from "@/hooks";
@@ -8,15 +8,17 @@ import { useAppStore } from "@/stores";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { StandaloneProfileSwitcher } from "@/components/profile-switcher-standalone";
 import { PlatformSelector } from "./_components/platform-selector";
 import { MediaUploader } from "./_components/media-uploader";
 import { SchedulePicker, type ScheduleType } from "./_components/schedule-picker";
 import { Loader2, Send, PenSquare, Users, Calendar, Image as ImageIcon } from "lucide-react";
-import type { Platform } from "@/lib/late-api";
+import type { Platform, PlatformSpecificData } from "@/lib/late-api";
+import { PlatformOptions } from "./_components/platform-options";
 
 export default function ComposePage() {
   const router = useRouter();
-  const { timezone } = useAppStore();
+  const { timezone, selectedProfileId } = useAppStore();
   const profileId = useCurrentProfileId();
   const { data: accountsData } = useAccounts();
   const createPostMutation = useCreatePost();
@@ -28,6 +30,30 @@ export default function ComposePage() {
   const [scheduleType, setScheduleType] = useState<ScheduleType>("now");
   const [scheduledDate, setScheduledDate] = useState<Date>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
+  const [platformDataMap, setPlatformDataMap] = useState<
+    Record<string, PlatformSpecificData>
+  >({});
+
+  const updatePlatformData = (accountId: string, data: PlatformSpecificData | undefined) => {
+    setPlatformDataMap((prev) => {
+      if (!data) {
+        const next = { ...prev };
+        delete next[accountId];
+        return next;
+      }
+      return { ...prev, [accountId]: data };
+    });
+  };
+
+  // Clear selected accounts when profile switches
+  const prevProfileRef = useRef(selectedProfileId);
+  useEffect(() => {
+    if (prevProfileRef.current !== selectedProfileId) {
+      setSelectedAccountIds([]);
+      setPlatformDataMap({});
+      prevProfileRef.current = selectedProfileId;
+    }
+  }, [selectedProfileId]);
 
   const accounts = (accountsData?.accounts || []) as any[];
   const hasVideo = media.some((m) => m.type === "video");
@@ -64,6 +90,9 @@ export default function ComposePage() {
       const platforms = selectedAccounts.map((account) => ({
         platform: account.platform as Platform,
         accountId: account._id,
+        ...(platformDataMap[account._id] && {
+          platformSpecificData: platformDataMap[account._id],
+        }),
       }));
 
       // Build media items
@@ -152,15 +181,18 @@ export default function ComposePage() {
       {/* Platforms */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-4 w-4" />
-            Select Accounts
-            {selectedAccountIds.length > 0 && (
-              <span className="text-muted-foreground font-normal">
-                ({selectedAccountIds.length} selected)
-              </span>
-            )}
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4" />
+              Select Accounts
+              {selectedAccountIds.length > 0 && (
+                <span className="text-muted-foreground font-normal">
+                  ({selectedAccountIds.length} selected)
+                </span>
+              )}
+            </CardTitle>
+            <StandaloneProfileSwitcher />
+          </div>
           <CardDescription>
             Choose which accounts to publish to.
           </CardDescription>
@@ -172,6 +204,16 @@ export default function ComposePage() {
             hasVideo={hasVideo}
             hasImages={hasImages}
           />
+          {selectedAccounts.length > 0 && (
+            <PlatformOptions
+              selectedAccounts={selectedAccounts}
+              platformDataMap={platformDataMap}
+              updatePlatformData={updatePlatformData}
+              hasVideo={hasVideo}
+              hasImages={hasImages}
+              media={media}
+            />
+          )}
         </CardContent>
       </Card>
 

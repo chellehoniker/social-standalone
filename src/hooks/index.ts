@@ -31,6 +31,7 @@ export {
   useUpdatePost,
   useDeletePost,
   useRetryPost,
+  useUnpublishPost,
   useCalendarPosts,
   useScheduledPosts,
   useRecentPosts,
@@ -52,6 +53,9 @@ export {
   getMaxFileSize,
   type UploadedMedia,
 } from "./use-media";
+
+// Inbox
+export { usePrivateReply } from "./use-inbox";
 
 // Queue
 export {

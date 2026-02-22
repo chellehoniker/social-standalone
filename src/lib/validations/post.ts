@@ -25,6 +25,7 @@ export const CreatePostSchema = z.object({
         platform: platformEnum,
         accountId: z.string(),
         customContent: z.string().optional(),
+        platformSpecificData: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .min(1, "At least one platform is required"),
@@ -64,6 +65,7 @@ export const UpdatePostSchema = z.object({
         platform: platformEnum,
         accountId: z.string(),
         customContent: z.string().optional(),
+        platformSpecificData: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .optional(),
