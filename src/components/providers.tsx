@@ -3,23 +3,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AuthProvider } from "@/hooks/use-auth";
-
-function MountGate({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Wait for client-side mount to prevent hydration mismatch
-  if (!mounted) {
-    return null;
-  }
-
-  return <>{children}</>;
-}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -42,11 +27,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <MountGate>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </MountGate>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <Toaster position="top-right" richColors closeButton />
       </ThemeProvider>
     </QueryClientProvider>
