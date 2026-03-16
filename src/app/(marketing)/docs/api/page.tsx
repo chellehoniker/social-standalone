@@ -290,6 +290,11 @@ export default function ApiDocsPage() {
                   type: "string",
                   description: "IANA timezone (e.g., America/Chicago)",
                 },
+                {
+                  name: "tiktokOptions",
+                  type: "object",
+                  description: "TikTok-specific settings (see TikTok section below)",
+                },
               ]}
             />
             <CodeBlock title="Publish now">
@@ -340,6 +345,112 @@ export default function ApiDocsPage() {
               Delete Post
             </h3>
             <Endpoint method="DELETE" path="/posts/:id" />
+          </section>
+
+          {/* ── TikTok ── */}
+          <section>
+            <h2 className="text-xl font-semibold text-foreground">
+              TikTok Options
+            </h2>
+            <p className="mt-2">
+              TikTok posts support additional options via the{" "}
+              <Code>tiktokOptions</Code> field when creating a post. By default,
+              TikTok posts are <strong className="text-foreground">published live</strong>.
+              Set <Code>draft: true</Code> to send the post to your TikTok
+              Creator Inbox for review before publishing.
+            </p>
+
+            <ParamTable
+              params={[
+                {
+                  name: "draft",
+                  type: "boolean",
+                  description:
+                    "Send to TikTok Inbox instead of publishing live (default: false)",
+                },
+                {
+                  name: "privacyLevel",
+                  type: "string",
+                  description:
+                    "PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, or SELF_ONLY",
+                },
+                {
+                  name: "allowComment",
+                  type: "boolean",
+                  description: "Allow comments (default: true)",
+                },
+                {
+                  name: "allowDuet",
+                  type: "boolean",
+                  description: "Allow duets — video posts only (default: true)",
+                },
+                {
+                  name: "allowStitch",
+                  type: "boolean",
+                  description: "Allow stitches — video posts only (default: true)",
+                },
+                {
+                  name: "commercialContentType",
+                  type: "string",
+                  description: "none, brand_organic, or brand_content",
+                },
+                {
+                  name: "autoAddMusic",
+                  type: "boolean",
+                  description: "Let TikTok add music — photo posts only",
+                },
+              ]}
+            />
+
+            <CodeBlock title="Publish live to TikTok (default)">
+              {`{
+  "content": "New book trailer!",
+  "accountIds": ["tiktok_account_id"],
+  "publishNow": true
+}`}
+            </CodeBlock>
+            <CodeBlock title="Send to TikTok Inbox as draft">
+              {`{
+  "content": "New book trailer!",
+  "accountIds": ["tiktok_account_id"],
+  "publishNow": true,
+  "tiktokOptions": {
+    "draft": true,
+    "privacyLevel": "PUBLIC_TO_EVERYONE",
+    "allowComment": true
+  }
+}`}
+            </CodeBlock>
+            <CodeBlock title="Post with restricted privacy">
+              {`{
+  "content": "Sneak peek for friends only",
+  "accountIds": ["tiktok_account_id"],
+  "publishNow": true,
+  "tiktokOptions": {
+    "privacyLevel": "MUTUAL_FOLLOW_FRIENDS",
+    "allowDuet": false,
+    "allowStitch": false
+  }
+}`}
+            </CodeBlock>
+
+            <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+              <h4 className="text-sm font-semibold text-foreground">
+                TikTok Draft vs Live
+              </h4>
+              <ul className="mt-2 space-y-1 text-xs">
+                <li>
+                  <strong className="text-foreground">Live (default):</strong>{" "}
+                  Post is published directly to your TikTok profile at the scheduled time.
+                </li>
+                <li>
+                  <strong className="text-foreground">Draft:</strong>{" "}
+                  Post is sent to your TikTok app&apos;s Creator Inbox
+                  (under Profile &gt; Creator tools &gt; Posts from apps).
+                  You review and publish manually from the TikTok app.
+                </li>
+              </ul>
+            </div>
           </section>
 
           {/* ── Queue ── */}
