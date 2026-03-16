@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { Logo } from "@/components/shared/logo";
@@ -22,35 +21,21 @@ import {
 import { useTheme } from "next-themes";
 
 export default function LandingPage() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Lightweight auth check just for header buttons — never blocks rendering
+    createClient()
+      .auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session) setIsLoggedIn(true);
+      })
+      .catch(() => {});
   }, []);
-
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  // Don't render until mounted
-  if (!mounted) {
-    return null;
-  }
-
-  // Show loading state while auth is resolving or redirecting to dashboard
-  if (isLoading || isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
 
   const features = [
     {
@@ -132,34 +117,60 @@ export default function LandingPage() {
           <Logo size="md" />
 
           <div className="flex items-center gap-4">
-            <Link
-              href="/pricing"
-              className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/login"
-              className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign In
-            </Link>
-            {mounted && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              >
-                {theme === "dark" ? (
-                  <Sun className="h-5 w-5" />
-                ) : (
-                  <Moon className="h-5 w-5" />
+            {isLoggedIn ? (
+              <>
+                {mounted && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? (
+                      <Sun className="h-5 w-5" />
+                    ) : (
+                      <Moon className="h-5 w-5" />
+                    )}
+                  </Button>
                 )}
-              </Button>
+                <Button asChild>
+                  <Link href="/dashboard">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/pricing"
+                  className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
+                >
+                  Pricing
+                </Link>
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Sign In
+                </Link>
+                {mounted && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? (
+                      <Sun className="h-5 w-5" />
+                    ) : (
+                      <Moon className="h-5 w-5" />
+                    )}
+                  </Button>
+                )}
+                <Button asChild>
+                  <Link href="/pricing">Get Started</Link>
+                </Button>
+              </>
             )}
-            <Button asChild>
-              <Link href="/pricing">Get Started</Link>
-            </Button>
           </div>
         </div>
       </header>
@@ -179,15 +190,26 @@ export default function LandingPage() {
               audience without the hassle.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Button size="lg" asChild>
-                <Link href="/pricing">
-                  Get Started
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/login">Sign In</Link>
-              </Button>
+              {isLoggedIn ? (
+                <Button size="lg" asChild>
+                  <Link href="/dashboard">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              ) : (
+                <>
+                  <Button size="lg" asChild>
+                    <Link href="/pricing">
+                      Get Started
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button size="lg" variant="outline" asChild>
+                    <Link href="/login">Sign In</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
