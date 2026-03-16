@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAccounts, useQueuePreview } from "@/hooks";
+import { fetchWithProfile } from "@/lib/api/fetch-with-profile";
 import { useAISettings } from "@/hooks/use-ai-settings";
 import {
   useCreateCampaign,
@@ -145,15 +146,54 @@ export default function CreateCampaignPage() {
   };
 
   // ── Step 5: Generate Media ──
+  const [mediaProgress, setMediaProgress] = useState<{
+    total: number; completed: number; failed: number; inProgress: number; isRunning: boolean;
+    posts: Array<{ id: string; day_number: number; status: string; media_urls: Record<string, string> }>;
+  } | null>(null);
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+
+  const pollMediaStatus = useCallback(async () => {
+    if (!campaignId) return;
+    try {
+      const res = await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`);
+      if (res.ok) {
+        const data = await res.json();
+        setMediaProgress(data);
+        return data;
+      }
+    } catch { /* ignore poll errors */ }
+    return null;
+  }, [campaignId]);
+
+  // Poll while generating
+  useEffect(() => {
+    if (!isGeneratingMedia || !campaignId) return;
+    const interval = setInterval(async () => {
+      const data = await pollMediaStatus();
+      if (data && !data.isRunning && data.inProgress === 0) {
+        setIsGeneratingMedia(false);
+        await refetchCampaign();
+        toast.success(`Media generation complete: ${data.completed} succeeded, ${data.failed} failed`);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isGeneratingMedia, campaignId, pollMediaStatus, refetchCampaign]);
+
   const handleGenerateMedia = async () => {
     if (!campaignId) return;
     try {
-      const result = await generateMedia.mutateAsync(campaignId);
-      await refetchCampaign();
-      toast.success(`Generated media: ${result.completed} succeeded, ${result.failed} failed`);
-      goNext();
+      const res = await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        setIsGeneratingMedia(true);
+        // Immediately poll for initial state
+        await pollMediaStatus();
+      } else {
+        toast.error("Failed to start media generation");
+      }
     } catch {
-      toast.error("Failed to generate media");
+      toast.error("Failed to start media generation");
     }
   };
 
@@ -533,32 +573,60 @@ export default function CreateCampaignPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {generateMedia.isPending ? (
+            {isGeneratingMedia ? (
               <div className="space-y-4">
-                <div className="flex flex-col items-center py-6">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm font-medium">Generating images...</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This takes 5-15 minutes for a 30-day campaign. You can wait here or come back later.
+                {/* Progress bar */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium">
+                      {mediaProgress
+                        ? `${mediaProgress.completed} of ${mediaProgress.total} complete`
+                        : "Starting..."}
+                    </span>
+                    {mediaProgress && mediaProgress.failed > 0 && (
+                      <span className="text-destructive">{mediaProgress.failed} failed</span>
+                    )}
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{
+                        width: mediaProgress
+                          ? `${Math.round(((mediaProgress.completed + mediaProgress.failed) / Math.max(mediaProgress.total, 1)) * 100)}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    {mediaProgress && mediaProgress.total > 0
+                      ? `Estimated ${Math.max(1, Math.round((mediaProgress.total - mediaProgress.completed - mediaProgress.failed) * 0.7))} min remaining`
+                      : "Preparing..."}
                   </p>
                 </div>
 
-                {/* Progress grid */}
+                {/* Post grid with live status */}
                 <div className="grid grid-cols-6 gap-2">
-                  {posts.map((post) => (
-                    <div
-                      key={post.id}
-                      className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium ${
-                        post.status === "ready"
-                          ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300"
-                          : post.status === "failed"
-                          ? "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300"
-                          : "bg-muted text-muted-foreground animate-pulse"
-                      }`}
-                    >
-                      {post.day_number}
-                    </div>
-                  ))}
+                  {(mediaProgress?.posts || posts).map((post) => {
+                    const firstUrl = Object.values(post.media_urls || {})[0] as string;
+                    return (
+                      <div
+                        key={post.id}
+                        className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium ${
+                          post.status === "ready"
+                            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300"
+                            : post.status === "failed"
+                            ? "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+                            : "bg-muted text-muted-foreground animate-pulse"
+                        }`}
+                      >
+                        {firstUrl ? (
+                          <img src={firstUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
+                        ) : (
+                          post.day_number
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -566,7 +634,7 @@ export default function CreateCampaignPage() {
                 {/* Show thumbnails if media already generated */}
                 {posts.some((p) => Object.keys(p.media_urls || {}).length > 0) && (
                   <div className="grid grid-cols-5 gap-2">
-                    {posts.slice(0, 10).map((post) => {
+                    {posts.map((post) => {
                       const firstUrl = Object.values(post.media_urls || {})[0] as string;
                       return (
                         <div key={post.id} className="aspect-square rounded-lg overflow-hidden bg-muted">
@@ -592,7 +660,7 @@ export default function CreateCampaignPage() {
                   </Button>
                   {posts.some((p) => Object.keys(p.media_urls || {}).length > 0) && (
                     <Button variant="outline" onClick={goNext}>
-                      Skip <ArrowRight className="ml-2 h-4 w-4" />
+                      Next <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   )}
                 </div>
