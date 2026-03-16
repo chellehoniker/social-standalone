@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getLateClient } from "@/lib/late-api";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -53,6 +54,31 @@ export async function requireSubscription(): Promise<{
 
   if (profile.subscription_status !== "active") {
     redirect("/pricing");
+  }
+
+  // Auto-provision Late profile if missing (safety net for webhook failures)
+  if (!profile.getlate_profile_id) {
+    try {
+      const late = await getLateClient();
+      const emailPrefix = (user.email || "user").split("@")[0];
+      const { data: created } = await late.profiles.createProfile({
+        body: { name: emailPrefix },
+      });
+
+      const newProfileId = created?.profile?._id;
+      if (newProfileId) {
+        const serviceClient = createServiceClient();
+        await serviceClient
+          .from("profiles")
+          .update({ getlate_profile_id: newProfileId } as never)
+          .eq("id", user.id);
+
+        profile.getlate_profile_id = newProfileId;
+        console.log(`[Auth] Auto-provisioned Late profile for ${user.email}: ${newProfileId}`);
+      }
+    } catch (e) {
+      console.error(`[Auth] Failed to auto-provision Late profile for ${user.email}:`, e);
+    }
   }
 
   return {
