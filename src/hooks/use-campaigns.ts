@@ -117,8 +117,9 @@ export function useScheduleCampaign() {
       campaignId: string;
       startDate: string;
       timezone: string;
-      useQueue: boolean;
+      scheduleMode: "spread" | "queue" | "custom";
       accountMap: Record<string, string>;
+      postTimes?: string[];
     }) => {
       const res = await fetchWithProfile(`/api/campaigns/${params.campaignId}/schedule`, {
         method: "POST",

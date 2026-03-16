@@ -51,12 +51,21 @@ const MYSTIC_ASPECT_RATIOS: Record<string, string> = {
 
 /**
  * Video generation model endpoint mapping.
+ * POST goes to the -pro/-std path, but GET polling uses the base model path.
+ * E.g., POST to /kling-o1-pro, poll at /kling-o1/{task-id}
  */
-const VIDEO_MODEL_ENDPOINTS: Record<string, string> = {
+const VIDEO_MODEL_POST_ENDPOINTS: Record<string, string> = {
   "kling-o1-pro": "/v1/ai/image-to-video/kling-o1-pro",
   "kling-o1-std": "/v1/ai/image-to-video/kling-o1-std",
   "kling-elements-pro": "/v1/ai/image-to-video/kling-elements-pro",
   "kling-elements-std": "/v1/ai/image-to-video/kling-elements-std",
+};
+
+const VIDEO_MODEL_POLL_ENDPOINTS: Record<string, string> = {
+  "kling-o1-pro": "/v1/ai/image-to-video/kling-o1",
+  "kling-o1-std": "/v1/ai/image-to-video/kling-o1",
+  "kling-elements-pro": "/v1/ai/image-to-video/kling-elements",
+  "kling-elements-std": "/v1/ai/image-to-video/kling-elements",
 };
 
 async function freepikFetch(
@@ -219,6 +228,7 @@ export async function generateImage(
 
 /**
  * Generate a video from an image using the specified model.
+ * Uses `first_frame` (not `image_url`) per FreePik's verified API format.
  */
 export async function generateVideo(
   apiKey: string,
@@ -226,13 +236,14 @@ export async function generateVideo(
   prompt: string,
   imageUrl: string
 ): Promise<FreePikTaskResult> {
-  const endpoint = VIDEO_MODEL_ENDPOINTS[model] || VIDEO_MODEL_ENDPOINTS["kling-o1-pro"];
+  const postEndpoint = VIDEO_MODEL_POST_ENDPOINTS[model] || VIDEO_MODEL_POST_ENDPOINTS["kling-o1-pro"];
+  const pollEndpoint = VIDEO_MODEL_POLL_ENDPOINTS[model] || VIDEO_MODEL_POLL_ENDPOINTS["kling-o1-pro"];
 
-  const response = await freepikFetch(apiKey, endpoint, {
+  const response = await freepikFetch(apiKey, postEndpoint, {
     method: "POST",
     body: JSON.stringify({
       prompt,
-      image_url: imageUrl,
+      first_frame: imageUrl,
     }),
   });
 
@@ -240,19 +251,20 @@ export async function generateVideo(
   const taskId = data.data?.task_id || data.task_id || data.id;
 
   if (!taskId) {
-    throw new Error("No task ID from FreePik video generation");
+    throw new Error(`No task ID from FreePik video generation (model: ${model})`);
   }
 
-  return pollTask(apiKey, endpoint, taskId);
+  return pollTask(apiKey, pollEndpoint, taskId);
 }
 
 /**
  * Generate AI music from a text prompt.
+ * Uses `music_length_seconds` (not `duration`) per FreePik's verified API format.
  */
 export async function generateMusic(
   apiKey: string,
   prompt: string,
-  durationSeconds: number = 30
+  durationSeconds: number = 15
 ): Promise<FreePikTaskResult> {
   const endpoint = "/v1/ai/music-generation";
 
@@ -260,7 +272,7 @@ export async function generateMusic(
     method: "POST",
     body: JSON.stringify({
       prompt,
-      duration: durationSeconds,
+      music_length_seconds: durationSeconds,
     }),
   });
 

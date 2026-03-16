@@ -7,8 +7,18 @@ import { unauthorized, forbidden, badRequest, serverError } from "@/lib/api/erro
 /**
  * POST /api/campaigns/[id]/schedule
  * Schedule all ready campaign posts via the Late API.
- * Body: { startDate, timezone, useQueue?, accountMap }
- * accountMap: { platform: accountId } - maps platform names to Late account IDs
+ *
+ * Body: {
+ *   startDate: string (ISO date),
+ *   timezone: string,
+ *   scheduleMode: "spread" | "queue" | "custom",
+ *   accountMap: { platform: accountId },
+ *   postTimes?: string[] // for custom/spread: "HH:mm" times to cycle through
+ * }
+ *
+ * "spread" = one post per day starting at startDate, cycling through postTimes
+ * "queue" = use the user's Late queue (queuedFromProfile)
+ * "custom" = same as spread but user provides specific times
  */
 export async function POST(
   request: NextRequest,
@@ -31,7 +41,7 @@ export async function POST(
     return badRequest("Invalid JSON");
   }
 
-  const { startDate, timezone, useQueue, accountMap } = body;
+  const { startDate, timezone, scheduleMode, accountMap, postTimes } = body;
   if (!startDate || !accountMap) {
     return badRequest("startDate and accountMap are required");
   }
@@ -39,7 +49,6 @@ export async function POST(
   try {
     const supabase = createServiceClient();
 
-    // Get campaign + posts
     const { data: campaign } = await (supabase as any)
       .from("campaigns")
       .select("*")
@@ -61,6 +70,7 @@ export async function POST(
     const plan = campaign.post_plan || [];
     const late = await getLateClient();
     const start = new Date(startDate);
+    const times = postTimes?.length ? postTimes : ["10:00"];
     let scheduled = 0;
     let failed = 0;
 
@@ -68,13 +78,7 @@ export async function POST(
       const dayPlan = plan.find((d: any) => d.day === post.day_number);
       if (!dayPlan) continue;
 
-      // Calculate scheduled time (one post per day, starting from startDate)
-      const postDate = new Date(start);
-      postDate.setDate(postDate.getDate() + (post.day_number - 1));
-      // Default to 10:00 AM if not using queue
-      postDate.setHours(10, 0, 0, 0);
-
-      // Build platforms array from accountMap
+      // Build platforms array from accountMap with per-platform captions
       const platforms = Object.entries(accountMap)
         .filter(([platform]) => post.caption_variants[platform])
         .map(([platform, accountId]) => ({
@@ -85,36 +89,64 @@ export async function POST(
 
       if (platforms.length === 0) continue;
 
-      // Find the first available media URL
+      // Build mediaItems based on content type
+      const mediaItems: Array<{ type: "image" | "video"; url: string }> = [];
       const mediaUrls = post.media_urls || {};
-      const mediaItems = Object.values(mediaUrls)
-        .filter(Boolean)
-        .slice(0, 1) // Use first available image
-        .map((url) => ({
-          type: "image" as const,
-          url: url as string,
-        }));
+
+      if (dayPlan.contentType === "carousel") {
+        // Carousel: multiple images as slides
+        const slideKeys = Object.keys(mediaUrls)
+          .filter((k) => k.startsWith("slide_"))
+          .sort((a, b) => parseInt(a.replace("slide_", "")) - parseInt(b.replace("slide_", "")));
+        for (const key of slideKeys) {
+          if (mediaUrls[key]) {
+            mediaItems.push({ type: "image", url: mediaUrls[key] });
+          }
+        }
+      } else if (dayPlan.contentType === "video") {
+        // Video: use the generated video, fallback to still
+        if (mediaUrls.video) {
+          mediaItems.push({ type: "video", url: mediaUrls.video });
+        } else if (mediaUrls.video_still) {
+          mediaItems.push({ type: "image", url: mediaUrls.video_still });
+        }
+      } else {
+        // Single image: use the first available URL
+        const firstUrl = Object.values(mediaUrls).find(Boolean) as string;
+        if (firstUrl) {
+          mediaItems.push({ type: "image", url: firstUrl });
+        }
+      }
+
+      // Build create post body
+      const defaultCaption = post.caption_variants[platforms[0].platform] || dayPlan.theme;
+      const createBody: Record<string, unknown> = {
+        content: defaultCaption,
+        platforms,
+        timezone: timezone || "UTC",
+        profileId,
+      };
+
+      if (mediaItems.length > 0) {
+        createBody.mediaItems = mediaItems;
+      }
+
+      if (scheduleMode === "queue") {
+        // Queue mode: Late assigns to next available queue slot
+        createBody.queuedFromProfile = profileId;
+      } else {
+        // Spread/custom: calculate specific scheduled time
+        const postDate = new Date(start);
+        postDate.setDate(postDate.getDate() + (post.day_number - 1));
+        const timeIndex = (post.day_number - 1) % times.length;
+        const [hours, minutes] = (times[timeIndex] || "10:00").split(":").map(Number);
+        postDate.setHours(hours, minutes, 0, 0);
+        createBody.scheduledFor = postDate.toISOString();
+        createBody.publishNow = false;
+      }
 
       try {
-        const createBody: Record<string, unknown> = {
-          content: post.caption_variants[platforms[0].platform] || dayPlan.theme,
-          platforms,
-          timezone: timezone || "UTC",
-          profileId,
-        };
-
-        if (useQueue) {
-          createBody.queuedFromProfile = profileId;
-        } else {
-          createBody.scheduledFor = postDate.toISOString();
-          createBody.publishNow = false;
-        }
-
-        if (mediaItems.length > 0) {
-          createBody.mediaItems = mediaItems;
-        }
-
-        const { data: latePost, error: lateError } = await late.posts.createPost({
+        const { data: latePost } = await late.posts.createPost({
           body: createBody as any,
         });
 
@@ -123,7 +155,7 @@ export async function POST(
             .from("campaign_posts")
             .update({
               late_post_id: latePost.post?._id || null,
-              scheduled_for: postDate.toISOString(),
+              scheduled_for: scheduleMode === "queue" ? null : (createBody.scheduledFor as string),
               status: "scheduled",
               updated_at: new Date().toISOString(),
             })
@@ -135,7 +167,6 @@ export async function POST(
             .update({ status: "failed", updated_at: new Date().toISOString() })
             .eq("id", post.id);
           failed++;
-          console.error(`[Campaign] Failed to schedule day ${post.day_number}:`, lateError);
         }
       } catch (err) {
         await (supabase as any)
@@ -147,7 +178,6 @@ export async function POST(
       }
     }
 
-    // Update campaign status
     await (supabase as any)
       .from("campaigns")
       .update({

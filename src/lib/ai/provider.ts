@@ -21,7 +21,9 @@ export interface CampaignDay {
   theme: string;
   captions: Record<string, string>; // platform → caption
   imagePrompt: string;
+  imagePrompts?: string[]; // for carousel: array of prompts (one per slide)
   videoPrompt?: string;
+  musicPrompt?: string; // mood/style for AI music on video posts
   contentType: "image" | "video" | "carousel";
   hashtags?: string[];
 }
@@ -83,9 +85,28 @@ Return a JSON array of objects. Each object represents one day's post:
       "facebook": "Facebook caption...",
       "linkedin": "Professional LinkedIn caption..."
     },
-    "imagePrompt": "Detailed image generation prompt describing the visual...",
+    "imagePrompt": "Detailed image generation prompt for the main visual...",
     "contentType": "image",
     "hashtags": ["relevant", "hashtags"]
+  },
+  {
+    "day": 5,
+    "theme": "Character reveal carousel",
+    "captions": { ... },
+    "imagePrompt": "First slide visual description",
+    "imagePrompts": ["Slide 1 prompt", "Slide 2 prompt", "Slide 3 prompt", "Slide 4 prompt"],
+    "contentType": "carousel",
+    "hashtags": [...]
+  },
+  {
+    "day": 10,
+    "theme": "Behind the scenes reel",
+    "captions": { ... },
+    "imagePrompt": "Still frame for the video - describes the opening shot",
+    "videoPrompt": "Camera slowly pans across... describe the motion and transitions",
+    "musicPrompt": "Upbeat acoustic guitar, warm and inviting, bookish vibes",
+    "contentType": "video",
+    "hashtags": [...]
   }
 ]
 \`\`\`
@@ -98,8 +119,11 @@ Rules:
 - LinkedIn: professional tone, thought leadership angle
 - Twitter/X: under 280 chars, punchy, with 1-2 hashtags
 - Pinterest: keyword-rich description for search
-- Image prompts should be detailed and specific for AI generation
-- Mix content types across the campaign (mostly images, some video-worthy days)
+- Image prompts should be detailed and specific for AI image generation
+- Mix content types: ~60% single images, ~25% carousels (3-5 slides), ~15% video
+- For carousels: provide "imagePrompts" array with 3-5 slide descriptions that tell a visual story
+- For videos: provide "videoPrompt" describing camera motion/transitions and "musicPrompt" describing the audio mood
+- "imagePrompt" is always required (used as hero image / video first frame / first carousel slide)
 - Build narrative momentum across the ${params.durationDays} days
 - Only include captions for the platforms listed above
 
@@ -136,7 +160,9 @@ export function parseCampaignResponse(response: string): CampaignDay[] {
     theme: item.theme || "Untitled",
     captions: item.captions || {},
     imagePrompt: item.imagePrompt || item.image_prompt || "",
+    imagePrompts: item.imagePrompts || item.image_prompts,
     videoPrompt: item.videoPrompt || item.video_prompt,
+    musicPrompt: item.musicPrompt || item.music_prompt,
     contentType: item.contentType || item.content_type || "image",
     hashtags: item.hashtags || [],
   }));

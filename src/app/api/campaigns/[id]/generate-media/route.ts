@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { createServiceClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto/encrypt";
-import { processGenerationQueue, type GenerationTask } from "@/lib/freepik";
-import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey, getDeduplicationGroups } from "@/lib/ai/platform-sizes";
+import { generateImage, generateVideo, generateMusic } from "@/lib/freepik/client";
+import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey } from "@/lib/ai/platform-sizes";
 import { unauthorized, forbidden, badRequest, serverError } from "@/lib/api/errors";
+
+const MAX_CONCURRENT = 2;
 
 /**
  * POST /api/campaigns/[id]/generate-media
- * Generate images/videos for all campaign posts via FreePik.
+ * Generate all media (images, carousels, videos, music) for campaign posts.
  */
 export async function POST(
   request: NextRequest,
@@ -27,7 +29,6 @@ export async function POST(
   try {
     const supabase = createServiceClient();
 
-    // Get campaign + settings
     const [campaignResult, settingsResult, postsResult] = await Promise.all([
       (supabase as any).from("campaigns").select("*").eq("id", campaignId).eq("user_id", userId).single(),
       (supabase as any).from("user_ai_settings").select("*").eq("id", userId).single(),
@@ -43,105 +44,234 @@ export async function POST(
     const plan = campaign.post_plan || [];
 
     const freepikKey = decrypt(settings.freepik_key_encrypted);
-    const imageModel = settings.freepik_image_model || "mystic";
+    const imageModel = settings.freepik_image_model || "nano-banana-pro";
     const videoModel = settings.freepik_video_model || "kling-o1-pro";
+    const stylePrompt = settings.image_style_prompt || "";
 
-    // Build generation tasks
-    const tasks: GenerationTask[] = [];
     const platforms = (campaign.platforms || []).map((p: any) =>
       typeof p === "string" ? p : p.platform
     );
 
-    // Compute deduplication groups
-    const sizeKeys = platforms.map((p: string) => getDefaultSizeKey(p));
-    const dedupeGroups = getDeduplicationGroups(sizeKeys);
-
-    for (const post of posts) {
-      const dayPlan = plan.find((d: any) => d.day === post.day_number);
-      if (!dayPlan?.imagePrompt) continue;
-
-      const fullPrompt = settings.image_style_prompt
-        ? `${dayPlan.imagePrompt}. Style: ${settings.image_style_prompt}`
-        : dayPlan.imagePrompt;
-
-      if (dayPlan.contentType === "video") {
-        // For video: generate a still image first, then video from it
-        const size = PLATFORM_IMAGE_SIZES[getDefaultSizeKey(platforms[0])] || PLATFORM_IMAGE_SIZES.twitter;
-        tasks.push({
-          id: `${post.id}_video_still`,
-          type: "image",
-          prompt: fullPrompt,
-          width: size.width,
-          height: size.height,
-          model: imageModel,
-        });
-        // Video task added after image is done (handled in post-processing)
-      } else {
-        // For image posts: one task per unique size group
-        const seenGroups = new Set<string>();
-        for (const platform of platforms) {
-          const sizeKey = getDefaultSizeKey(platform);
-          const size = PLATFORM_IMAGE_SIZES[sizeKey];
-          if (!size) continue;
-
-          const groupKey = `${size.width}x${size.height}`;
-          if (seenGroups.has(groupKey)) continue;
-          seenGroups.add(groupKey);
-
-          tasks.push({
-            id: `${post.id}_${sizeKey}`,
-            type: "image",
-            prompt: fullPrompt,
-            width: size.width,
-            height: size.height,
-            model: imageModel,
-            deduplicationKey: `day${post.day_number}_${groupKey}`,
-          });
+    // Compute unique sizes needed across platforms
+    const uniqueSizes = new Map<string, { width: number; height: number }>();
+    for (const platform of platforms) {
+      const sizeKey = getDefaultSizeKey(platform);
+      const size = PLATFORM_IMAGE_SIZES[sizeKey];
+      if (size) {
+        const groupKey = `${size.width}x${size.height}`;
+        if (!uniqueSizes.has(groupKey)) {
+          uniqueSizes.set(groupKey, { width: size.width, height: size.height });
         }
       }
     }
+    // Use the first (most common) size as default for video first frames
+    const defaultSize = uniqueSizes.values().next().value || { width: 1080, height: 1350 };
 
-    // Process the queue
-    const results = await processGenerationQueue(freepikKey, tasks);
+    let totalTasks = 0;
+    let completedTasks = 0;
+    let failedTasks = 0;
 
-    // Update campaign_posts with generated media URLs
-    let successCount = 0;
-    let failCount = 0;
+    // Process posts with limited concurrency
+    const postQueue = [...posts];
+    const activeWork = new Set<Promise<void>>();
 
-    for (const post of posts) {
-      const mediaUrls: Record<string, string> = {};
-      let hasFailure = false;
-
-      for (const [taskId, result] of results) {
-        if (!taskId.startsWith(post.id)) continue;
-
-        if (result.status === "completed" && result.resultUrl) {
-          const sizeKey = taskId.replace(`${post.id}_`, "");
-          mediaUrls[sizeKey] = result.resultUrl;
-        } else {
-          hasFailure = true;
-        }
+    const processPost = async (post: any) => {
+      const dayPlan = plan.find((d: any) => d.day === post.day_number);
+      if (!dayPlan?.imagePrompt) {
+        failedTasks++;
+        return;
       }
 
-      const hasMedia = Object.keys(mediaUrls).length > 0;
+      const appendStyle = (prompt: string) =>
+        stylePrompt ? `${prompt}. Style: ${stylePrompt}` : prompt;
 
+      const mediaUrls: Record<string, string> = {};
+      let musicUrl: string | null = null;
+      let hasFailure = false;
+
+      // Mark post as generating
+      await (supabase as any)
+        .from("campaign_posts")
+        .update({ status: "generating", updated_at: new Date().toISOString() })
+        .eq("id", post.id);
+
+      try {
+        if (dayPlan.contentType === "carousel") {
+          // ── CAROUSEL: Generate multiple images (one per slide) ──
+          const slidePrompts = dayPlan.imagePrompts?.length
+            ? dayPlan.imagePrompts
+            : [dayPlan.imagePrompt]; // fallback to single image
+
+          const slideUrls: string[] = [];
+          for (let i = 0; i < slidePrompts.length; i++) {
+            totalTasks++;
+            try {
+              const result = await generateImage(
+                freepikKey,
+                imageModel,
+                appendStyle(slidePrompts[i]),
+                defaultSize.width,
+                defaultSize.height
+              );
+              if (result.status === "completed" && result.resultUrl) {
+                slideUrls.push(result.resultUrl);
+                completedTasks++;
+              } else {
+                hasFailure = true;
+                failedTasks++;
+              }
+            } catch (err) {
+              console.error(`[Media] Carousel slide ${i} failed for day ${post.day_number}:`, err);
+              hasFailure = true;
+              failedTasks++;
+            }
+          }
+          // Store slide URLs indexed by slide number
+          slideUrls.forEach((url, i) => {
+            mediaUrls[`slide_${i}`] = url;
+          });
+
+        } else if (dayPlan.contentType === "video") {
+          // ── VIDEO: Generate still image → video from it → optional music ──
+
+          // Step 1: Generate the hero still image (used as video first frame)
+          totalTasks++;
+          let stillUrl: string | null = null;
+          try {
+            const stillResult = await generateImage(
+              freepikKey,
+              imageModel,
+              appendStyle(dayPlan.imagePrompt),
+              defaultSize.width,
+              defaultSize.height
+            );
+            if (stillResult.status === "completed" && stillResult.resultUrl) {
+              stillUrl = stillResult.resultUrl;
+              mediaUrls["video_still"] = stillUrl;
+              completedTasks++;
+            } else {
+              hasFailure = true;
+              failedTasks++;
+            }
+          } catch (err) {
+            console.error(`[Media] Video still failed for day ${post.day_number}:`, err);
+            hasFailure = true;
+            failedTasks++;
+          }
+
+          // Step 2: Generate video from still image
+          if (stillUrl) {
+            totalTasks++;
+            try {
+              const videoPrompt = dayPlan.videoPrompt || `Gentle camera movement, ${dayPlan.theme}`;
+              const videoResult = await generateVideo(
+                freepikKey,
+                videoModel,
+                videoPrompt,
+                stillUrl
+              );
+              if (videoResult.status === "completed" && videoResult.resultUrl) {
+                mediaUrls["video"] = videoResult.resultUrl;
+                completedTasks++;
+              } else {
+                hasFailure = true;
+                failedTasks++;
+              }
+            } catch (err) {
+              console.error(`[Media] Video gen failed for day ${post.day_number}:`, err);
+              hasFailure = true;
+              failedTasks++;
+            }
+          }
+
+          // Step 3: Generate music (if music prompt provided)
+          if (dayPlan.musicPrompt) {
+            totalTasks++;
+            try {
+              const musicResult = await generateMusic(
+                freepikKey,
+                dayPlan.musicPrompt,
+                15
+              );
+              if (musicResult.status === "completed" && musicResult.resultUrl) {
+                musicUrl = musicResult.resultUrl;
+                completedTasks++;
+              } else {
+                failedTasks++;
+                // Music failure is non-fatal
+              }
+            } catch (err) {
+              console.error(`[Media] Music gen failed for day ${post.day_number}:`, err);
+              failedTasks++;
+            }
+          }
+
+        } else {
+          // ── SINGLE IMAGE: One image per unique platform size ──
+          const seenGroups = new Set<string>();
+          for (const [groupKey, size] of uniqueSizes) {
+            if (seenGroups.has(groupKey)) continue;
+            seenGroups.add(groupKey);
+
+            totalTasks++;
+            try {
+              const result = await generateImage(
+                freepikKey,
+                imageModel,
+                appendStyle(dayPlan.imagePrompt),
+                size.width,
+                size.height
+              );
+              if (result.status === "completed" && result.resultUrl) {
+                mediaUrls[groupKey] = result.resultUrl;
+                completedTasks++;
+              } else {
+                hasFailure = true;
+                failedTasks++;
+              }
+            } catch (err) {
+              console.error(`[Media] Image ${groupKey} failed for day ${post.day_number}:`, err);
+              hasFailure = true;
+              failedTasks++;
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Media] Unexpected error for day ${post.day_number}:`, err);
+        hasFailure = true;
+      }
+
+      // Update post with generated media
+      const hasMedia = Object.keys(mediaUrls).length > 0 || musicUrl;
       await (supabase as any)
         .from("campaign_posts")
         .update({
           media_urls: mediaUrls,
-          status: hasMedia ? (hasFailure ? "ready" : "ready") : "failed",
+          music_url: musicUrl,
+          status: hasMedia ? "ready" : "failed",
           updated_at: new Date().toISOString(),
         })
         .eq("id", post.id);
+    };
 
-      if (hasMedia) successCount++;
-      else if (hasFailure) failCount++;
+    // Run with concurrency limit
+    const runNext = async () => {
+      while (postQueue.length > 0) {
+        const post = postQueue.shift()!;
+        await processPost(post);
+      }
+    };
+
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < MAX_CONCURRENT; i++) {
+      workers.push(runNext());
     }
+    await Promise.all(workers);
 
     return NextResponse.json({
-      total: tasks.length,
-      completed: successCount,
-      failed: failCount,
+      total: totalTasks,
+      completed: completedTasks,
+      failed: failedTasks,
     });
   } catch (err) {
     return serverError(err, { action: "generateMedia", campaignId });
@@ -169,22 +299,17 @@ export async function GET(
     const supabase = createServiceClient();
     const { data: posts } = await (supabase as any)
       .from("campaign_posts")
-      .select("id, day_number, status, media_urls")
+      .select("id, day_number, status, media_urls, music_url")
       .eq("campaign_id", campaignId)
       .eq("user_id", validation.user.id)
       .order("day_number");
 
     const allPosts = posts || [];
-    const total = allPosts.length;
-    const completed = allPosts.filter((p: any) => p.status === "ready" || p.status === "scheduled").length;
-    const failed = allPosts.filter((p: any) => p.status === "failed").length;
-    const generating = allPosts.filter((p: any) => p.status === "generating").length;
-
     return NextResponse.json({
-      total,
-      completed,
-      failed,
-      inProgress: generating,
+      total: allPosts.length,
+      completed: allPosts.filter((p: any) => p.status === "ready" || p.status === "scheduled").length,
+      failed: allPosts.filter((p: any) => p.status === "failed").length,
+      inProgress: allPosts.filter((p: any) => p.status === "generating").length,
       posts: allPosts,
     });
   } catch (err) {

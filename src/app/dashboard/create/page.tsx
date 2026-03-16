@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useAccounts } from "@/hooks";
+import { useAccounts, useQueuePreview } from "@/hooks";
 import { useAISettings } from "@/hooks/use-ai-settings";
 import {
   useCreateCampaign,
@@ -76,7 +76,8 @@ export default function CreateCampaignPage() {
   const [startDate, setStartDate] = useState(
     new Date(Date.now() + 86400000).toISOString().split("T")[0] // tomorrow
   );
-  const [useQueue, setUseQueue] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<"spread" | "queue" | "custom">("spread");
+  const [postTimes, setPostTimes] = useState(["10:00"]);
   const [accountMap, setAccountMap] = useState<Record<string, string>>({});
 
   // Mutations
@@ -86,6 +87,7 @@ export default function CreateCampaignPage() {
   const scheduleCampaign = useScheduleCampaign();
   const updatePost = useUpdateCampaignPost();
   const { data: campaignData, refetch: refetchCampaign } = useCampaign(campaignId || "");
+  const { data: queueData } = useQueuePreview(durationDays);
 
   const campaign = campaignData?.campaign;
   const posts = campaignData?.posts || [];
@@ -163,8 +165,9 @@ export default function CreateCampaignPage() {
         campaignId,
         startDate,
         timezone,
-        useQueue,
+        scheduleMode,
         accountMap,
+        postTimes,
       });
       toast.success(`Scheduled ${result.scheduled} posts!`);
       router.push("/dashboard/calendar");
@@ -608,20 +611,124 @@ export default function CreateCampaignPage() {
               Schedule Campaign
             </CardTitle>
             <CardDescription>
-              Choose when to start posting and map platforms to accounts.
+              Choose how and when to post, and map platforms to accounts.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Start Date</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-48"
-              />
+            {/* Schedule Mode */}
+            <div className="space-y-2">
+              <Label className="text-xs">Scheduling Method</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: "spread" as const, label: "Spread Evenly", desc: "One post per day at set times" },
+                  { value: "queue" as const, label: "Use My Queue", desc: "Fill your queue slots automatically" },
+                  { value: "custom" as const, label: "Custom Times", desc: "Set multiple times per day" },
+                ]).map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setScheduleMode(mode.value)}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      scheduleMode === mode.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-accent/50"
+                    }`}
+                  >
+                    <p className="text-xs font-medium">{mode.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{mode.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* Start Date (for spread and custom) */}
+            {scheduleMode !== "queue" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Start Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-9 w-48"
+                />
+              </div>
+            )}
+
+            {/* Post Times (for spread and custom) */}
+            {scheduleMode !== "queue" && (
+              <div className="space-y-2">
+                <Label className="text-xs">
+                  Posting Times {scheduleMode === "custom" && "(posts cycle through these times)"}
+                </Label>
+                {postTimes.map((time, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={time}
+                      onChange={(e) => {
+                        const updated = [...postTimes];
+                        updated[i] = e.target.value;
+                        setPostTimes(updated);
+                      }}
+                      className="h-8 w-32 text-xs"
+                    />
+                    {postTimes.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-muted-foreground"
+                        onClick={() => setPostTimes(postTimes.filter((_, j) => j !== i))}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {scheduleMode === "custom" && postTimes.length < 5 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setPostTimes([...postTimes, "14:00"])}
+                  >
+                    + Add Time
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Queue Preview (for queue mode) */}
+            {scheduleMode === "queue" && (
+              <div className="space-y-2">
+                <Label className="text-xs">Your Queue Slots</Label>
+                {queueData?.slots?.length ? (
+                  <div className="rounded-lg border border-border divide-y divide-border max-h-48 overflow-y-auto">
+                    {(queueData.slots as string[]).slice(0, 10).map((slot: string, i: number) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <span>{new Date(slot).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(slot).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    ))}
+                    {(queueData.slots as string[]).length > 10 && (
+                      <div className="px-3 py-2 text-[10px] text-muted-foreground text-center">
+                        +{(queueData.slots as string[]).length - 10} more slots
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-muted p-4 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      No queue slots configured. Set up your queue in the Queue page first,
+                      or use &quot;Spread Evenly&quot; instead.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Account Mapping */}
             <div className="space-y-2">
               <Label className="text-xs">Account Mapping</Label>
               <p className="text-[10px] text-muted-foreground">
@@ -652,14 +759,21 @@ export default function CreateCampaignPage() {
               })}
             </div>
 
+            {/* Summary */}
             <div className="rounded-lg bg-muted p-4 text-center">
               <p className="text-sm font-medium">
                 {posts.filter((p) => p.status === "ready" || p.status === "draft").length} posts
-                will be scheduled across {durationDays} days
+                will be scheduled
+                {scheduleMode === "queue"
+                  ? " via your queue"
+                  : ` across ${durationDays} days`}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Starting {new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-              </p>
+              {scheduleMode !== "queue" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Starting {new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  {postTimes.length > 0 && ` at ${postTimes.join(", ")}`}
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3">
