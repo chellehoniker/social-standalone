@@ -87,13 +87,23 @@ export default function ComposePage() {
       }
 
       // Build platforms array
-      const platforms = selectedAccounts.map((account) => ({
-        platform: account.platform as Platform,
-        accountId: account._id,
-        ...(platformDataMap[account._id] && {
-          platformSpecificData: platformDataMap[account._id],
-        }),
-      }));
+      const platforms = selectedAccounts.map((account) => {
+        let platformSpecificData = platformDataMap[account._id];
+
+        // TikTok defaults to draft:true in the Late API if no data is sent.
+        // Always send draft:false explicitly unless the user enabled it.
+        if (account.platform === "tiktok" && !platformSpecificData) {
+          platformSpecificData = { draft: false };
+        } else if (account.platform === "tiktok" && platformSpecificData && !("draft" in platformSpecificData)) {
+          platformSpecificData = { ...platformSpecificData, draft: false };
+        }
+
+        return {
+          platform: account.platform as Platform,
+          accountId: account._id,
+          ...(platformSpecificData && { platformSpecificData }),
+        };
+      });
 
       // Build media items
       const mediaItems = media.map((m) => ({
