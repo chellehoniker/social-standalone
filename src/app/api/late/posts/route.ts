@@ -78,6 +78,12 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  // Late API may return both data and error (e.g., partial success or warnings).
+  // If we got valid data back, treat it as success.
+  if (data) {
+    return NextResponse.json(data);
+  }
+
   if (error) {
     return serverError(error, { action: "createPost", profileId });
   }
