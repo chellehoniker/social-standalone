@@ -25,6 +25,7 @@ import {
   Calendar,
   Users,
   ListOrdered,
+  Wand2,
   Settings,
   Moon,
   Sun,
@@ -32,6 +33,7 @@ import {
   Shield,
   HelpCircle,
 } from "lucide-react";
+import { useAISettings } from "@/hooks/use-ai-settings";
 
 const ADMIN_EMAIL = "chelle@atheniacreative.com";
 
@@ -85,6 +87,16 @@ export function DashboardShell({
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { data: aiSettings } = useAISettings();
+
+  // Build nav items dynamically — show "Create" only when AI is enabled
+  const dynamicNavItems = aiSettings?.ai_enabled
+    ? [
+        ...navItems.slice(0, 2), // Dashboard, Compose
+        { label: "Create", href: "/dashboard/create", icon: Wand2 },
+        ...navItems.slice(2), // Calendar, Accounts, Queue
+      ]
+    : navItems;
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -105,7 +117,7 @@ export function DashboardShell({
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-2">
           <div className="space-y-1">
-            {navItems.map((item) => {
+            {dynamicNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));
