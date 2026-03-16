@@ -33,9 +33,25 @@ const PALETTE_DARK = [
   "#FBBF24", // rose
 ];
 
+/**
+ * Safely extract a string ID from an accountId that may be a string or a
+ * populated SocialAccount object (as returned by the Late API).
+ */
+export function resolveAccountId(accountId: unknown): string {
+  if (typeof accountId === "string") return accountId;
+  if (accountId && typeof accountId === "object") {
+    const obj = accountId as Record<string, unknown>;
+    if (typeof obj._id === "string") return obj._id;
+    if (typeof obj.id === "string") return obj.id;
+  }
+  return "";
+}
+
 function hashAccountId(accountId: string): number {
   // Use last 8 chars of the MongoDB _id as hex
-  const slice = accountId.slice(-8);
+  const id = resolveAccountId(accountId);
+  if (!id) return 0;
+  const slice = id.slice(-8);
   const num = parseInt(slice, 16);
   return Number.isNaN(num) ? 0 : num;
 }

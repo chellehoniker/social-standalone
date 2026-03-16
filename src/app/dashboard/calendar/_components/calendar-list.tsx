@@ -12,7 +12,7 @@ import { useTheme } from "next-themes";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { PostStatusBadge } from "@/components/posts";
 import { cn } from "@/lib/utils";
-import { getAccountColor } from "@/lib/account-colors";
+import { getAccountColor, resolveAccountId } from "@/lib/account-colors";
 import type { Platform } from "@/lib/late-api";
 import { Clock, Video } from "lucide-react";
 
@@ -124,7 +124,7 @@ export function CalendarList({
           {/* Posts for this day */}
           <div className="divide-y divide-border/50">
             {dayPosts.map((post) => {
-              const accountId = post.platforms[0]?.accountId;
+              const accountId = resolveAccountId(post.platforms[0]?.accountId);
               const borderColor = accountId
                 ? getAccountColor(accountId, isDark)
                 : undefined;

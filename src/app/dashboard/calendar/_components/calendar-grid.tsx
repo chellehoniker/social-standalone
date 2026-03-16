@@ -12,7 +12,7 @@ import { parseISO } from "date-fns/parseISO";
 import { isToday } from "date-fns/isToday";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-import { getAccountColor, getAccountColorWithAlpha } from "@/lib/account-colors";
+import { getAccountColor, getAccountColorWithAlpha, resolveAccountId } from "@/lib/account-colors";
 
 interface Post {
   _id: string;
@@ -183,7 +183,7 @@ export function CalendarGrid({
                 <div className="mt-1 space-y-1">
                   {dayPosts.slice(0, 2).map((post) => {
                     const isDraggable = post.status === "scheduled" && !!onPostReschedule;
-                    const accountId = post.platforms[0]?.accountId;
+                    const accountId = resolveAccountId(post.platforms[0]?.accountId);
                     const postStyle = accountId
                       ? {
                           backgroundColor: getAccountColorWithAlpha(accountId, isDark, 0.1),
