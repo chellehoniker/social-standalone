@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey, isApiKeyError } from "@/lib/auth/validate-api-key";
 import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { getLateClient } from "@/lib/late-api";
+import { parseRequestBody } from "@/lib/validations";
 import {
   unauthorized,
   forbidden,
@@ -9,6 +10,12 @@ import {
   rateLimited,
   serverError,
 } from "@/lib/api/errors";
+import { z } from "zod/v4";
+
+const ExternalUpdatePostSchema = z.object({
+  content: z.string().max(25000).optional(),
+  scheduledAt: z.string().datetime().optional(),
+});
 
 /**
  * GET /api/v1/posts/[id]
@@ -102,5 +109,64 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (err) {
     return serverError(err, { action: "deletePost", postId: id });
+  }
+}
+
+/**
+ * PATCH /api/v1/posts/[id]
+ * Update a scheduled post (content and/or scheduledAt).
+ * Verifies ownership first.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const validation = await validateApiKey(request);
+  if (isApiKeyError(validation)) {
+    if (validation.status === 401) return unauthorized(validation.error);
+    if (validation.status === 403) return forbidden(validation.error);
+    return NextResponse.json({ error: validation.error }, { status: validation.status });
+  }
+
+  const limited = checkRateLimit(validation.profile.id);
+  if (limited) {
+    return rateLimited(
+      `Rate limit exceeded. Resets at ${new Date(limited.resetAt).toISOString()}`
+    );
+  }
+
+  const { id } = await params;
+
+  const parsed = await parseRequestBody(request, ExternalUpdatePostSchema);
+  if (!parsed.success) return parsed.response;
+
+  try {
+    const late = await getLateClient();
+
+    // Verify ownership before updating
+    const { data: existingPost } = await late.posts.getPost({
+      path: { postId: id },
+    });
+
+    if (existingPost?.post?.profileId !== validation.profileId) {
+      return notFound("Post");
+    }
+
+    const { content, scheduledAt } = parsed.data;
+    const { data, error } = await late.posts.updatePost({
+      path: { postId: id },
+      body: {
+        ...(content !== undefined && { content }),
+        ...(scheduledAt !== undefined && { scheduledFor: scheduledAt }),
+      },
+    });
+
+    if (error) {
+      return serverError(error, { action: "updatePost", postId: id });
+    }
+
+    return NextResponse.json(data ?? { success: true });
+  } catch (err) {
+    return serverError(err, { action: "updatePost", postId: id });
   }
 }
