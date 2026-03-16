@@ -530,15 +530,121 @@ export default function CreateCampaignPage() {
                         </div>
                       ))}
 
-                      {/* Image prompt */}
+                      {/* Image prompt (editable) */}
                       {dayPlan?.imagePrompt && (
                         <div className="space-y-1">
                           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                             <ImageIcon className="h-3 w-3" /> Image Prompt
                           </Label>
-                          <p className="text-xs text-muted-foreground bg-muted rounded p-2">
-                            {dayPlan.imagePrompt}
-                          </p>
+                          <Textarea
+                            defaultValue={dayPlan.imagePrompt}
+                            rows={2}
+                            className="text-xs resize-none"
+                            onBlur={(e) => {
+                              if (e.target.value !== dayPlan.imagePrompt && campaignId) {
+                                const updatedPlan = [...plan];
+                                const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                if (idx >= 0) {
+                                  updatedPlan[idx] = { ...updatedPlan[idx], imagePrompt: e.target.value };
+                                  fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ post_plan: updatedPlan }),
+                                  });
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Carousel slide prompts (editable) */}
+                      {dayPlan?.imagePrompts?.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                            <ImageIcon className="h-3 w-3" /> Carousel Slides
+                          </Label>
+                          {dayPlan.imagePrompts.map((slidePrompt: string, slideIdx: number) => (
+                            <Textarea
+                              key={slideIdx}
+                              defaultValue={slidePrompt}
+                              rows={2}
+                              className="text-xs resize-none"
+                              placeholder={`Slide ${slideIdx + 1} prompt`}
+                              onBlur={(e) => {
+                                if (e.target.value !== slidePrompt && campaignId) {
+                                  const updatedPlan = [...plan];
+                                  const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                  if (idx >= 0) {
+                                    const updatedSlides = [...(updatedPlan[idx].imagePrompts || [])];
+                                    updatedSlides[slideIdx] = e.target.value;
+                                    updatedPlan[idx] = { ...updatedPlan[idx], imagePrompts: updatedSlides };
+                                    fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ post_plan: updatedPlan }),
+                                    });
+                                  }
+                                }
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Video prompt (editable) */}
+                      {dayPlan?.videoPrompt && (
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground uppercase">
+                            Video Motion Prompt
+                          </Label>
+                          <Textarea
+                            defaultValue={dayPlan.videoPrompt}
+                            rows={2}
+                            className="text-xs resize-none"
+                            onBlur={(e) => {
+                              if (e.target.value !== dayPlan.videoPrompt && campaignId) {
+                                const updatedPlan = [...plan];
+                                const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                if (idx >= 0) {
+                                  updatedPlan[idx] = { ...updatedPlan[idx], videoPrompt: e.target.value };
+                                  fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ post_plan: updatedPlan }),
+                                  });
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Music prompt (editable) */}
+                      {dayPlan?.musicPrompt && (
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground uppercase">
+                            Music Mood
+                          </Label>
+                          <Textarea
+                            defaultValue={dayPlan.musicPrompt}
+                            rows={1}
+                            className="text-xs resize-none"
+                            onBlur={(e) => {
+                              if (e.target.value !== dayPlan.musicPrompt && campaignId) {
+                                const updatedPlan = [...plan];
+                                const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                if (idx >= 0) {
+                                  updatedPlan[idx] = { ...updatedPlan[idx], musicPrompt: e.target.value };
+                                  fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ post_plan: updatedPlan }),
+                                  });
+                                }
+                              }
+                            }}
+                          />
                         </div>
                       )}
                     </div>
