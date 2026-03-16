@@ -6,10 +6,12 @@ import type {
   FacebookPlatformData,
   InstagramPlatformData,
   GoogleBusinessPlatformData,
+  TikTokPlatformData,
 } from "@/lib/late-api/types";
 import { FacebookOptions } from "./facebook-options";
 import { InstagramOptions } from "./instagram-options";
 import { GoogleBusinessOptions } from "./google-business-options";
+import { TikTokOptions } from "./tiktok-options";
 
 interface PlatformOptionsProps {
   selectedAccounts: Account[];
@@ -40,11 +42,15 @@ export function PlatformOptions({
   const googleAccounts = selectedAccounts.filter(
     (a) => a.platform === "googlebusiness"
   );
+  const tiktokAccounts = selectedAccounts.filter(
+    (a) => a.platform === "tiktok"
+  );
 
   const hasOptions =
     facebookAccounts.length > 0 ||
     instagramAccounts.length > 0 ||
-    googleAccounts.length > 0;
+    googleAccounts.length > 0 ||
+    tiktokAccounts.length > 0;
 
   if (!hasOptions) return null;
 
@@ -81,6 +87,18 @@ export function PlatformOptions({
             {}
           }
           onChange={(data) => updatePlatformData(account._id, data)}
+        />
+      ))}
+      {tiktokAccounts.map((account) => (
+        <TikTokOptions
+          key={account._id}
+          accountId={account._id}
+          data={
+            (platformDataMap[account._id] as TikTokPlatformData) ?? {}
+          }
+          onChange={(data) => updatePlatformData(account._id, data)}
+          hasVideo={hasVideo}
+          hasImages={hasImages}
         />
       ))}
     </div>

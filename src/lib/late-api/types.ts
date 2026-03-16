@@ -118,13 +118,18 @@ export const PLATFORM_CONSTRAINTS: Record<
 
 // Platform-specific data types (for the composer)
 export interface TikTokPlatformData {
-  privacyLevel: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "SELF_ONLY";
-  allowComment: boolean;
-  allowDuet: boolean;
-  allowStitch: boolean;
-  commercialContentType: "none" | "brand_organic" | "brand_content";
+  draft?: boolean;
+  privacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "SELF_ONLY";
+  allowComment?: boolean;
+  allowDuet?: boolean;
+  allowStitch?: boolean;
+  commercialContentType?: "none" | "brand_organic" | "brand_content";
+  brandPartnerPromote?: boolean;
+  isBrandOrganicPost?: boolean;
+  mediaType?: "video" | "photo";
   videoCoverTimestampMs?: number;
   photoCoverIndex?: number;
+  autoAddMusic?: boolean;
 }
 
 export interface YouTubePlatformData {
