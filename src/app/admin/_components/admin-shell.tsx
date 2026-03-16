@@ -21,6 +21,7 @@ import { Logo } from "@/components/shared";
 import {
   LayoutDashboard,
   Users,
+  MessageSquare,
   Moon,
   Sun,
   LogOut,
@@ -44,6 +45,11 @@ const adminNavItems = [
     label: "Users",
     href: "/admin/users",
     icon: Users,
+  },
+  {
+    label: "Tickets",
+    href: "/admin/tickets",
+    icon: MessageSquare,
   },
 ];
 
