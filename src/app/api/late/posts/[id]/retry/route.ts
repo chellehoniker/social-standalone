@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
+import { postBelongsToProfile } from "@/lib/late-api/ownership";
 
 /**
  * POST /api/late/posts/[id]/retry
@@ -27,7 +28,7 @@ export async function POST(
     path: { postId: id },
   });
 
-  if (existingPost?.post?.profileId !== validation.profileId) {
+  if (!postBelongsToProfile(existingPost?.post, validation.profileId)) {
     return NextResponse.json(
       { error: "Post not found" },
       { status: 404 }

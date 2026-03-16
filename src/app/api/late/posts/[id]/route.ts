@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validate-tenant";
 import { getLateClient } from "@/lib/late-api";
+import { postBelongsToProfile } from "@/lib/late-api/ownership";
 
 /**
  * GET /api/late/posts/[id]
@@ -33,7 +34,7 @@ export async function GET(
   }
 
   // Verify post belongs to tenant's profile
-  if (data?.post?.profileId !== validation.profileId) {
+  if (!postBelongsToProfile(data?.post, validation.profileId)) {
     return NextResponse.json(
       { error: "Post not found" },
       { status: 404 }
@@ -69,7 +70,7 @@ export async function PUT(
     path: { postId: id },
   });
 
-  if (existingPost?.post?.profileId !== validation.profileId) {
+  if (!postBelongsToProfile(existingPost?.post, validation.profileId)) {
     return NextResponse.json(
       { error: "Post not found" },
       { status: 404 }
@@ -116,7 +117,7 @@ export async function DELETE(
     path: { postId: id },
   });
 
-  if (existingPost?.post?.profileId !== validation.profileId) {
+  if (!postBelongsToProfile(existingPost?.post, validation.profileId)) {
     return NextResponse.json(
       { error: "Post not found" },
       { status: 404 }

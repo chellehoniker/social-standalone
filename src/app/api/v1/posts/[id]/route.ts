@@ -3,6 +3,7 @@ import { validateApiKey, isApiKeyError } from "@/lib/auth/validate-api-key";
 import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { getLateClient } from "@/lib/late-api";
 import { parseRequestBody } from "@/lib/validations";
+import { postBelongsToProfile } from "@/lib/late-api/ownership";
 import {
   unauthorized,
   forbidden,
@@ -52,7 +53,7 @@ export async function GET(
     }
 
     // Verify post belongs to user's profile
-    if (data?.post?.profileId !== validation.profileId) {
+    if (!postBelongsToProfile(data?.post, validation.profileId)) {
       return notFound("Post");
     }
 
@@ -94,7 +95,7 @@ export async function DELETE(
       path: { postId: id },
     });
 
-    if (existingPost?.post?.profileId !== validation.profileId) {
+    if (!postBelongsToProfile(existingPost?.post, validation.profileId)) {
       return notFound("Post");
     }
 
@@ -148,7 +149,7 @@ export async function PATCH(
       path: { postId: id },
     });
 
-    if (existingPost?.post?.profileId !== validation.profileId) {
+    if (!postBelongsToProfile(existingPost?.post, validation.profileId)) {
       return notFound("Post");
     }
 
