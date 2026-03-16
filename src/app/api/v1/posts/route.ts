@@ -91,14 +91,38 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return parsed.response;
 
   // Transform simplified external format to GetLate API shape
-  const { accountIds, scheduledAt, ...rest } = parsed.data;
+  const { accountIds, scheduledAt, tiktokOptions, ...rest } = parsed.data;
 
   try {
     const late = await getLateClient();
+
+    // Look up account platforms to properly build the platforms array
+    const { data: accountsData } = await late.accounts.listAccounts({
+      query: { profileId },
+    });
+    const accountsMap = new Map(
+      (accountsData?.accounts || []).map((a: any) => [a._id, a.platform])
+    );
+
+    const platforms = accountIds.map((accountId) => {
+      const platform = accountsMap.get(accountId);
+      const entry: Record<string, unknown> = { accountId, platform };
+
+      // Apply TikTok options (default draft:false to prevent inbox-only posts)
+      if (platform === "tiktok") {
+        entry.platformSpecificData = {
+          draft: false,
+          ...tiktokOptions,
+        };
+      }
+
+      return entry;
+    });
+
     const { data, error } = await late.posts.createPost({
       body: {
         ...rest,
-        platforms: accountIds.map((accountId) => ({ accountId })),
+        platforms,
         scheduledFor: scheduledAt,
         profileId,
       },

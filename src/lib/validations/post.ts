@@ -41,6 +41,16 @@ export type CreatePostInput = z.infer<typeof CreatePostSchema>;
  * Schema for creating a post via external API (/api/v1/posts).
  * Simplified format for Make.com/Zapier/n8n integrations.
  */
+const tiktokOptionsSchema = z.object({
+  draft: z.boolean().optional(),
+  privacyLevel: z.enum(["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"]).optional(),
+  allowComment: z.boolean().optional(),
+  allowDuet: z.boolean().optional(),
+  allowStitch: z.boolean().optional(),
+  commercialContentType: z.enum(["none", "brand_organic", "brand_content"]).optional(),
+  autoAddMusic: z.boolean().optional(),
+}).optional();
+
 export const ExternalCreatePostSchema = z.object({
   content: z.string().max(25000).optional(),
   accountIds: z.array(z.string()).min(1, "At least one account ID is required"),
@@ -48,6 +58,7 @@ export const ExternalCreatePostSchema = z.object({
   publishNow: z.boolean().optional().default(true),
   mediaItems: z.array(mediaItemSchema).optional(),
   timezone: z.string().optional(),
+  tiktokOptions: tiktokOptionsSchema,
 });
 
 export type ExternalCreatePostInput = z.infer<typeof ExternalCreatePostSchema>;
