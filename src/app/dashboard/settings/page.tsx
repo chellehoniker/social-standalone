@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CreditCard, Moon, Sun, Globe, LogOut, ExternalLink, Loader2 } from "lucide-react";
 import { ApiKeySection } from "@/components/settings/api-key-section";
+import { AISettingsSection } from "@/components/settings/ai-settings-section";
+import { GuidesSection } from "@/components/settings/guides-section";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -183,6 +185,12 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* AI Configuration */}
+      <AISettingsSection />
+
+      {/* Content Guides (only visible when AI is enabled) */}
+      <GuidesSection />
 
       {/* API Key */}
       <ApiKeySection />
