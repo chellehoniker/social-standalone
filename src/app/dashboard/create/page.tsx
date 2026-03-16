@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAccounts, useQueuePreview } from "@/hooks";
 import { fetchWithProfile } from "@/lib/api/fetch-with-profile";
@@ -9,10 +9,10 @@ import { useAISettings } from "@/hooks/use-ai-settings";
 import {
   useCreateCampaign,
   useGeneratePlan,
-  useGenerateMedia,
-  useScheduleCampaign,
+  useCampaigns,
   useCampaign,
   useUpdateCampaignPost,
+  useScheduleCampaign,
 } from "@/hooks/use-campaigns";
 import { useAppStore } from "@/stores";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -39,15 +40,19 @@ import {
   ImageIcon,
   Calendar,
   Sparkles,
-  AlertCircle,
+  Plus,
+  FolderOpen,
+  Trash2,
+  Clock,
 } from "lucide-react";
 import type { Platform } from "@/lib/late-api";
 import { PLATFORM_NAMES } from "@/lib/late-api";
 
-type Step = "objective" | "guides" | "generate" | "review" | "media" | "schedule";
-const STEPS: Step[] = ["objective", "guides", "generate", "review", "media", "schedule"];
+type Step = "list" | "objective" | "guides" | "generate" | "review" | "media" | "schedule";
+const WIZARD_STEPS: Step[] = ["objective", "guides", "generate", "review", "media", "schedule"];
 
 const STEP_LABELS: Record<Step, string> = {
+  list: "Campaigns",
   objective: "Objective",
   guides: "Review Guides",
   generate: "Generate Plan",
@@ -56,16 +61,28 @@ const STEP_LABELS: Record<Step, string> = {
   schedule: "Schedule",
 };
 
+const STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
+  generating: { label: "Generating...", className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-300" },
+  review: { label: "In Review", className: "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" },
+  scheduled: { label: "Scheduled", className: "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-300" },
+  active: { label: "Active", className: "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-300" },
+  completed: { label: "Completed", className: "bg-muted text-muted-foreground" },
+};
+
 export default function CreateCampaignPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { timezone } = useAppStore();
   const { data: accountsData } = useAccounts();
   const { data: aiSettings } = useAISettings();
+  const { data: campaignsData, refetch: refetchCampaigns } = useCampaigns();
   const accounts = (accountsData?.accounts || []) as any[];
 
-  // Wizard state
-  const [step, setStep] = useState<Step>("objective");
-  const [campaignId, setCampaignId] = useState<string | null>(null);
+  // Resume from URL param or start at list
+  const resumeId = searchParams.get("id");
+  const [step, setStep] = useState<Step>(resumeId ? "review" : "list");
+  const [campaignId, setCampaignId] = useState<string | null>(resumeId);
 
   // Step 1: Objective
   const [name, setName] = useState("");
@@ -75,16 +92,22 @@ export default function CreateCampaignPage() {
 
   // Step 6: Schedule
   const [startDate, setStartDate] = useState(
-    new Date(Date.now() + 86400000).toISOString().split("T")[0] // tomorrow
+    new Date(Date.now() + 86400000).toISOString().split("T")[0]
   );
   const [scheduleMode, setScheduleMode] = useState<"spread" | "queue" | "custom">("spread");
   const [postTimes, setPostTimes] = useState(["10:00"]);
   const [accountMap, setAccountMap] = useState<Record<string, string>>({});
 
+  // Media generation
+  const [mediaProgress, setMediaProgress] = useState<{
+    total: number; completed: number; failed: number; inProgress: number; isRunning: boolean;
+    posts: Array<{ id: string; day_number: number; status: string; media_urls: Record<string, string> }>;
+  } | null>(null);
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+
   // Mutations
   const createCampaign = useCreateCampaign();
   const generatePlan = useGeneratePlan();
-  const generateMedia = useGenerateMedia();
   const scheduleCampaign = useScheduleCampaign();
   const updatePost = useUpdateCampaignPost();
   const { data: campaignData, refetch: refetchCampaign } = useCampaign(campaignId || "");
@@ -94,19 +117,46 @@ export default function CreateCampaignPage() {
   const posts = campaignData?.posts || [];
   const plan = campaign?.post_plan || [];
 
-  const currentStepIndex = STEPS.indexOf(step);
+  // When resuming, populate form state from campaign
+  useEffect(() => {
+    if (campaign && !name) {
+      setName(campaign.name);
+      setObjective(campaign.objective);
+      setDurationDays(campaign.duration_days);
+      const plats = (campaign.platforms || []).map((p: any) => typeof p === "string" ? p : p.platform);
+      setSelectedPlatforms(plats);
+      updateAccountMap(plats);
+
+      // Jump to appropriate step based on status
+      if (campaign.status === "scheduled" || campaign.status === "active") {
+        setStep("schedule");
+      } else if (campaign.status === "review" && posts.some((p) => Object.keys(p.media_urls || {}).length > 0)) {
+        setStep("media");
+      } else if (campaign.status === "review") {
+        setStep("review");
+      } else if (campaign.status === "generating") {
+        setStep("generate");
+      }
+    }
+  }, [campaign, posts]);
+
+  const wizardStepIndex = WIZARD_STEPS.indexOf(step);
+  const isInWizard = step !== "list";
 
   const goNext = () => {
-    const next = STEPS[currentStepIndex + 1];
+    const next = WIZARD_STEPS[wizardStepIndex + 1];
     if (next) setStep(next);
   };
 
   const goBack = () => {
-    const prev = STEPS[currentStepIndex - 1];
+    if (wizardStepIndex <= 0) {
+      setStep("list");
+      return;
+    }
+    const prev = WIZARD_STEPS[wizardStepIndex - 1];
     if (prev) setStep(prev);
   };
 
-  // Auto-populate accountMap when platforms change
   const updateAccountMap = (platforms: string[]) => {
     const map: Record<string, string> = {};
     for (const platform of platforms) {
@@ -116,7 +166,34 @@ export default function CreateCampaignPage() {
     setAccountMap(map);
   };
 
-  // ── Step 1: Objective ──
+  const startNewCampaign = () => {
+    setCampaignId(null);
+    setName("");
+    setObjective("");
+    setDurationDays(30);
+    setSelectedPlatforms([]);
+    setAccountMap({});
+    setStep("objective");
+  };
+
+  const resumeCampaign = (id: string) => {
+    setCampaignId(id);
+    setName(""); // Will be populated by useEffect
+    setStep("review"); // Will be adjusted by useEffect
+    router.replace(`/dashboard/create?id=${id}`);
+  };
+
+  const deleteCampaign = async (id: string) => {
+    try {
+      await fetchWithProfile(`/api/campaigns/${id}`, { method: "DELETE" });
+      refetchCampaigns();
+      toast.success("Campaign deleted");
+    } catch {
+      toast.error("Failed to delete campaign");
+    }
+  };
+
+  // ── Step 1: Create Campaign ──
   const handleCreateCampaign = async () => {
     try {
       const result = await createCampaign.mutateAsync({
@@ -127,6 +204,7 @@ export default function CreateCampaignPage() {
       });
       setCampaignId(result.campaign.id);
       updateAccountMap(selectedPlatforms);
+      router.replace(`/dashboard/create?id=${result.campaign.id}`);
       goNext();
     } catch {
       toast.error("Failed to create campaign");
@@ -146,14 +224,8 @@ export default function CreateCampaignPage() {
   };
 
   // ── Step 5: Generate Media ──
-  const [mediaProgress, setMediaProgress] = useState<{
-    total: number; completed: number; failed: number; inProgress: number; isRunning: boolean;
-    posts: Array<{ id: string; day_number: number; status: string; media_urls: Record<string, string> }>;
-  } | null>(null);
-  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
-
   const pollMediaStatus = useCallback(async () => {
-    if (!campaignId) return;
+    if (!campaignId) return null;
     try {
       const res = await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`);
       if (res.ok) {
@@ -161,11 +233,10 @@ export default function CreateCampaignPage() {
         setMediaProgress(data);
         return data;
       }
-    } catch { /* ignore poll errors */ }
+    } catch { /* ignore */ }
     return null;
   }, [campaignId]);
 
-  // Poll while generating
   useEffect(() => {
     if (!isGeneratingMedia || !campaignId) return;
     const interval = setInterval(async () => {
@@ -182,12 +253,9 @@ export default function CreateCampaignPage() {
   const handleGenerateMedia = async () => {
     if (!campaignId) return;
     try {
-      const res = await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`, {
-        method: "POST",
-      });
+      const res = await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`, { method: "POST" });
       if (res.ok) {
         setIsGeneratingMedia(true);
-        // Immediately poll for initial state
         await pollMediaStatus();
       } else {
         toast.error("Failed to start media generation");
@@ -216,7 +284,6 @@ export default function CreateCampaignPage() {
     }
   };
 
-  // Get unique platforms from accounts
   const availablePlatforms = [...new Set(accounts.map((a: any) => a.platform as string))];
 
   if (!aiSettings?.ai_enabled) {
@@ -242,37 +309,110 @@ export default function CreateCampaignPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-          <Wand2 className="h-5 w-5" />
-          Create Campaign
-        </h1>
-        <p className="text-muted-foreground">
-          AI-powered social media campaign builder
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Wand2 className="h-5 w-5" />
+            {isInWizard ? (campaign?.name || "New Campaign") : "Campaigns"}
+          </h1>
+          <p className="text-muted-foreground">
+            {isInWizard ? "AI-powered campaign builder" : "Create and manage AI campaigns"}
+          </p>
+        </div>
+        {step === "list" && (
+          <Button onClick={startNewCampaign}>
+            <Plus className="mr-2 h-4 w-4" /> New Campaign
+          </Button>
+        )}
+        {isInWizard && (
+          <Button variant="ghost" size="sm" onClick={() => { setStep("list"); refetchCampaigns(); }}>
+            <FolderOpen className="mr-2 h-4 w-4" /> All Campaigns
+          </Button>
+        )}
       </div>
 
-      {/* Step indicator */}
-      <div className="flex gap-1">
-        {STEPS.map((s, i) => (
-          <div key={s} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className={`h-1.5 w-full rounded-full ${
-                i <= currentStepIndex ? "bg-primary" : "bg-muted"
-              }`}
-            />
-            <span
-              className={`text-[10px] ${
-                s === step ? "text-foreground font-medium" : "text-muted-foreground"
-              }`}
-            >
-              {STEP_LABELS[s]}
-            </span>
-          </div>
-        ))}
-      </div>
+      {/* Step indicator (wizard only) */}
+      {isInWizard && (
+        <div className="flex gap-1">
+          {WIZARD_STEPS.map((s, i) => (
+            <div key={s} className="flex-1 flex flex-col items-center gap-1">
+              <div className={`h-1.5 w-full rounded-full ${i <= wizardStepIndex ? "bg-primary" : "bg-muted"}`} />
+              <span className={`text-[10px] ${s === step ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {STEP_LABELS[s]}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* ── Step 1: Objective ── */}
+      {/* ══════ CAMPAIGN LIST ══════ */}
+      {step === "list" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FolderOpen className="h-4 w-4" />
+              Your Campaigns
+            </CardTitle>
+            <CardDescription>
+              Resume an in-progress campaign or start a new one.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!campaignsData?.campaigns?.length ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Sparkles className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                <h3 className="text-sm font-medium">No campaigns yet</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create your first AI-powered campaign to get started.
+                </p>
+                <Button className="mt-6" onClick={startNewCampaign}>
+                  <Plus className="mr-2 h-4 w-4" /> New Campaign
+                </Button>
+              </div>
+            ) : (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {campaignsData.campaigns.map((c: any) => {
+                  const status = STATUS_LABELS[c.status] || STATUS_LABELS.draft;
+                  return (
+                    <div key={c.id} className="flex items-center justify-between p-4">
+                      <button
+                        type="button"
+                        className="flex-1 text-left min-w-0"
+                        onClick={() => resumeCampaign(c.id)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium truncate">{c.name}</h4>
+                          <Badge variant="outline" className={`text-[10px] shrink-0 ${status.className}`}>
+                            {status.label}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">
+                            {c.duration_days} days
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(c.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteCampaign(c.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ══════ STEP 1: OBJECTIVE ══════ */}
       {step === "objective" && (
         <Card>
           <CardHeader>
@@ -280,38 +420,21 @@ export default function CreateCampaignPage() {
               <Sparkles className="h-4 w-4" />
               Campaign Objective
             </CardTitle>
-            <CardDescription>
-              What do you want to achieve with this campaign?
-            </CardDescription>
+            <CardDescription>What do you want to achieve?</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Campaign Name</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Spring Book Launch"
-                className="h-9"
-              />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Spring Book Launch" className="h-9" />
             </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs">Objective</Label>
-              <Textarea
-                value={objective}
-                onChange={(e) => setObjective(e.target.value)}
-                placeholder="e.g., Promote my new cozy mystery 'Curses and Currents' launching April 1st. Build anticipation with behind-the-scenes content, character reveals, and pre-order links."
-                rows={4}
-                className="resize-none text-sm"
-              />
+              <Textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="e.g., Promote my new cozy mystery launching April 1st..." rows={4} className="resize-none text-sm" />
             </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs">Duration</Label>
               <Select value={String(durationDays)} onValueChange={(v) => setDurationDays(Number(v))}>
-                <SelectTrigger className="h-9 w-32">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="7">7 days</SelectItem>
                   <SelectItem value="14">14 days</SelectItem>
@@ -319,167 +442,103 @@ export default function CreateCampaignPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs">Platforms</Label>
               <div className="grid grid-cols-2 gap-2">
                 {availablePlatforms.map((platform) => (
-                  <label
-                    key={platform}
-                    className="flex items-center gap-2 rounded-lg border border-border p-2.5 cursor-pointer hover:bg-accent/50"
-                  >
+                  <label key={platform} className="flex items-center gap-2 rounded-lg border border-border p-2.5 cursor-pointer hover:bg-accent/50">
                     <Checkbox
                       checked={selectedPlatforms.includes(platform)}
-                      onCheckedChange={(checked) => {
-                        setSelectedPlatforms((prev) =>
-                          checked
-                            ? [...prev, platform]
-                            : prev.filter((p) => p !== platform)
-                        );
-                      }}
+                      onCheckedChange={(checked) => setSelectedPlatforms((prev) => checked ? [...prev, platform] : prev.filter((p) => p !== platform))}
                     />
                     <span className="text-sm">{PLATFORM_NAMES[platform as Platform] || platform}</span>
                   </label>
                 ))}
               </div>
-              {availablePlatforms.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Connect accounts in the Accounts page first.
-                </p>
-              )}
             </div>
-
-            <Button
-              className="w-full"
-              disabled={!name || !objective || selectedPlatforms.length === 0 || createCampaign.isPending}
-              onClick={handleCreateCampaign}
-            >
-              {createCampaign.isPending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>
-              ) : (
-                <>Next: Review Guides <ArrowRight className="ml-2 h-4 w-4" /></>
-              )}
+            <Button className="w-full" disabled={!name || !objective || selectedPlatforms.length === 0 || createCampaign.isPending} onClick={handleCreateCampaign}>
+              {createCampaign.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : <>Next: Review Guides <ArrowRight className="ml-2 h-4 w-4" /></>}
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* ── Step 2: Review Guides ── */}
+      {/* ══════ STEP 2: REVIEW GUIDES ══════ */}
       {step === "guides" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Review Your Guides</CardTitle>
-            <CardDescription>
-              These guides will inform the AI when generating your campaign content.
-            </CardDescription>
+            <CardDescription>These guides inform the AI when generating content.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              { key: "prose_guide", label: "Prose Guide" },
-              { key: "brand_guide", label: "Brand Guide" },
-              { key: "copywriting_guide", label: "Copywriting Guide" },
-              { key: "social_media_guide", label: "Social Media Guide" },
-            ].map(({ key, label }) => (
-              <div key={key} className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">{label}</Label>
-                  {aiSettings?.[key as keyof typeof aiSettings] ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      <CheckCircle2 className="mr-1 h-3 w-3" />
-                      Set
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                      Not set
-                    </Badge>
+            {["prose_guide", "brand_guide", "copywriting_guide", "social_media_guide"].map((key) => {
+              const labels: Record<string, string> = { prose_guide: "Prose Guide", brand_guide: "Brand Guide", copywriting_guide: "Copywriting Guide", social_media_guide: "Social Media Guide" };
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">{labels[key]}</Label>
+                    {aiSettings?.[key as keyof typeof aiSettings] ? (
+                      <Badge variant="secondary" className="text-[10px]"><CheckCircle2 className="mr-1 h-3 w-3" />Set</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">Not set</Badge>
+                    )}
+                  </div>
+                  {aiSettings?.[key as keyof typeof aiSettings] && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 rounded bg-muted p-2">
+                      {String(aiSettings[key as keyof typeof aiSettings]).slice(0, 150)}...
+                    </p>
                   )}
                 </div>
-                {aiSettings?.[key as keyof typeof aiSettings] && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 rounded bg-muted p-2">
-                    {String(aiSettings[key as keyof typeof aiSettings]).slice(0, 150)}...
-                  </p>
-                )}
-              </div>
-            ))}
-
-            {aiSettings?.image_style_prompt && (
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Image Style</Label>
-                <p className="text-xs text-muted-foreground rounded bg-muted p-2">
-                  {aiSettings.image_style_prompt}
-                </p>
-              </div>
-            )}
-
+              );
+            })}
             <p className="text-xs text-muted-foreground">
-              You can edit your guides in{" "}
-              <a href="/dashboard/settings" className="text-primary underline">Settings</a>.
+              Edit guides in <a href="/dashboard/settings" className="text-primary underline">Settings</a>.
             </p>
-
             <div className="flex gap-3">
-              <Button variant="outline" onClick={goBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-              </Button>
-              <Button onClick={goNext} className="flex-1">
-                Next: Generate <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <Button variant="outline" onClick={goBack} className="flex-1"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+              <Button onClick={goNext} className="flex-1">Next: Generate <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ── Step 3: Generate Plan ── */}
+      {/* ══════ STEP 3: GENERATE PLAN ══════ */}
       {step === "generate" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Generate Campaign Plan
-            </CardTitle>
-            <CardDescription>
-              The AI will create {durationDays} days of social media content
-              tailored to your objective and guides.
-            </CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4" />Generate Campaign Plan</CardTitle>
+            <CardDescription>The AI will create {durationDays} days of content.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg bg-muted p-4 space-y-2">
-              <p className="text-sm"><strong>Campaign:</strong> {name}</p>
-              <p className="text-sm"><strong>Objective:</strong> {objective}</p>
-              <p className="text-sm"><strong>Duration:</strong> {durationDays} days</p>
-              <p className="text-sm"><strong>Platforms:</strong> {selectedPlatforms.map((p) => PLATFORM_NAMES[p as Platform] || p).join(", ")}</p>
-              <p className="text-sm"><strong>AI Provider:</strong> {aiSettings?.preferred_ai_provider || "openai"}</p>
+            <div className="rounded-lg bg-muted p-4 space-y-2 text-sm">
+              <p><strong>Campaign:</strong> {name || campaign?.name}</p>
+              <p><strong>Objective:</strong> {objective || campaign?.objective}</p>
+              <p><strong>Duration:</strong> {durationDays} days</p>
+              <p><strong>Platforms:</strong> {selectedPlatforms.map((p) => PLATFORM_NAMES[p as Platform] || p).join(", ")}</p>
+              <p><strong>AI Provider:</strong> {aiSettings?.preferred_ai_provider || "openai"}</p>
             </div>
-
             {generatePlan.isPending ? (
               <div className="flex flex-col items-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
                 <p className="text-sm font-medium">Generating your campaign plan...</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This may take 30-60 seconds
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">This may take 30-60 seconds</p>
               </div>
             ) : (
               <div className="flex gap-3">
-                <Button variant="outline" onClick={goBack} className="flex-1">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Back
-                </Button>
-                <Button onClick={handleGenerate} className="flex-1">
-                  <Sparkles className="mr-2 h-4 w-4" /> Generate Plan
-                </Button>
+                <Button variant="outline" onClick={goBack} className="flex-1"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                <Button onClick={handleGenerate} className="flex-1"><Sparkles className="mr-2 h-4 w-4" /> Generate Plan</Button>
               </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* ── Step 4: Review & Edit ── */}
+      {/* ══════ STEP 4: REVIEW & EDIT ══════ */}
       {step === "review" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Review & Edit</CardTitle>
-            <CardDescription>
-              Review the generated content for each day. Click on a caption to edit it.
-            </CardDescription>
+            <CardDescription>Edit captions and prompts for each day. Changes save automatically.</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[500px]">
@@ -490,16 +549,10 @@ export default function CreateCampaignPage() {
                     <div key={post.id} className="rounded-lg border border-border p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            Day {post.day_number}
-                          </Badge>
-                          <span className="text-sm font-medium">
-                            {dayPlan?.theme || ""}
-                          </span>
+                          <Badge variant="outline" className="text-xs">Day {post.day_number}</Badge>
+                          <span className="text-sm font-medium">{dayPlan?.theme || ""}</span>
                         </div>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {dayPlan?.contentType || "image"}
-                        </Badge>
+                        <Badge variant="secondary" className="text-[10px]">{dayPlan?.contentType || "image"}</Badge>
                       </div>
 
                       {/* Captions per platform */}
@@ -517,12 +570,7 @@ export default function CreateCampaignPage() {
                                 updatePost.mutate({
                                   campaignId: campaignId!,
                                   postId: post.id,
-                                  data: {
-                                    caption_variants: {
-                                      ...post.caption_variants,
-                                      [platform]: e.target.value,
-                                    },
-                                  },
+                                  data: { caption_variants: { ...post.caption_variants, [platform]: e.target.value } },
                                 });
                               }
                             }}
@@ -530,7 +578,7 @@ export default function CreateCampaignPage() {
                         </div>
                       ))}
 
-                      {/* Image prompt (editable) */}
+                      {/* Image prompt */}
                       {dayPlan?.imagePrompt && (
                         <div className="space-y-1">
                           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
@@ -558,46 +606,51 @@ export default function CreateCampaignPage() {
                         </div>
                       )}
 
-                      {/* Carousel slide prompts (editable) */}
-                      {dayPlan?.imagePrompts?.length > 0 && (
+                      {/* Carousel slides */}
+                      {dayPlan?.contentType === "carousel" && dayPlan?.imagePrompts?.length > 0 && (
                         <div className="space-y-2">
                           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                            <ImageIcon className="h-3 w-3" /> Carousel Slides
+                            <ImageIcon className="h-3 w-3" /> Carousel Slides ({dayPlan.imagePrompts.length})
                           </Label>
+                          <p className="text-[10px] text-muted-foreground">
+                            Each slide tells part of the story. Edit the visual description for each.
+                          </p>
                           {dayPlan.imagePrompts.map((slidePrompt: string, slideIdx: number) => (
-                            <Textarea
-                              key={slideIdx}
-                              defaultValue={slidePrompt}
-                              rows={2}
-                              className="text-xs resize-none"
-                              placeholder={`Slide ${slideIdx + 1} prompt`}
-                              onBlur={(e) => {
-                                if (e.target.value !== slidePrompt && campaignId) {
-                                  const updatedPlan = [...plan];
-                                  const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
-                                  if (idx >= 0) {
-                                    const updatedSlides = [...(updatedPlan[idx].imagePrompts || [])];
-                                    updatedSlides[slideIdx] = e.target.value;
-                                    updatedPlan[idx] = { ...updatedPlan[idx], imagePrompts: updatedSlides };
-                                    fetchWithProfile(`/api/campaigns/${campaignId}`, {
-                                      method: "PATCH",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ post_plan: updatedPlan }),
-                                    });
+                            <div key={slideIdx} className="flex gap-2">
+                              <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-[10px] font-medium shrink-0 mt-1">
+                                {slideIdx + 1}
+                              </div>
+                              <Textarea
+                                defaultValue={slidePrompt}
+                                rows={2}
+                                className="text-xs resize-none flex-1"
+                                placeholder={`Slide ${slideIdx + 1}`}
+                                onBlur={(e) => {
+                                  if (e.target.value !== slidePrompt && campaignId) {
+                                    const updatedPlan = [...plan];
+                                    const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                    if (idx >= 0) {
+                                      const updatedSlides = [...(updatedPlan[idx].imagePrompts || [])];
+                                      updatedSlides[slideIdx] = e.target.value;
+                                      updatedPlan[idx] = { ...updatedPlan[idx], imagePrompts: updatedSlides };
+                                      fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ post_plan: updatedPlan }),
+                                      });
+                                    }
                                   }
-                                }
-                              }}
-                            />
+                                }}
+                              />
+                            </div>
                           ))}
                         </div>
                       )}
 
-                      {/* Video prompt (editable) */}
+                      {/* Video prompt */}
                       {dayPlan?.videoPrompt && (
                         <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground uppercase">
-                            Video Motion Prompt
-                          </Label>
+                          <Label className="text-[10px] text-muted-foreground uppercase">Video Motion</Label>
                           <Textarea
                             defaultValue={dayPlan.videoPrompt}
                             rows={2}
@@ -609,8 +662,7 @@ export default function CreateCampaignPage() {
                                 if (idx >= 0) {
                                   updatedPlan[idx] = { ...updatedPlan[idx], videoPrompt: e.target.value };
                                   fetchWithProfile(`/api/campaigns/${campaignId}`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
+                                    method: "PATCH", headers: { "Content-Type": "application/json" },
                                     body: JSON.stringify({ post_plan: updatedPlan }),
                                   });
                                 }
@@ -620,12 +672,10 @@ export default function CreateCampaignPage() {
                         </div>
                       )}
 
-                      {/* Music prompt (editable) */}
+                      {/* Music prompt */}
                       {dayPlan?.musicPrompt && (
                         <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground uppercase">
-                            Music Mood
-                          </Label>
+                          <Label className="text-[10px] text-muted-foreground uppercase">Music Mood</Label>
                           <Textarea
                             defaultValue={dayPlan.musicPrompt}
                             rows={1}
@@ -637,8 +687,7 @@ export default function CreateCampaignPage() {
                                 if (idx >= 0) {
                                   updatedPlan[idx] = { ...updatedPlan[idx], musicPrompt: e.target.value };
                                   fetchWithProfile(`/api/campaigns/${campaignId}`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
+                                    method: "PATCH", headers: { "Content-Type": "application/json" },
                                     body: JSON.stringify({ post_plan: updatedPlan }),
                                   });
                                 }
@@ -647,47 +696,44 @@ export default function CreateCampaignPage() {
                           />
                         </div>
                       )}
+
+                      {/* Show generated media if it exists */}
+                      {Object.keys(post.media_urls || {}).length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {Object.entries(post.media_urls).map(([key, url]) => (
+                            <div key={key} className="h-16 w-16 rounded overflow-hidden bg-muted">
+                              <img src={url as string} alt={key} className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </ScrollArea>
-
             <div className="flex gap-3 mt-4">
-              <Button variant="outline" onClick={goBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-              </Button>
-              <Button onClick={goNext} className="flex-1">
-                Next: Generate Media <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <Button variant="outline" onClick={goBack} className="flex-1"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+              <Button onClick={goNext} className="flex-1">Next: Generate Media <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ── Step 5: Generate Media ── */}
+      {/* ══════ STEP 5: GENERATE MEDIA ══════ */}
       {step === "media" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Generate Media
-            </CardTitle>
-            <CardDescription>
-              Generate images for each day using FreePik AI.
-              This may take several minutes for large campaigns.
-            </CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><ImageIcon className="h-4 w-4" />Generate Media</CardTitle>
+            <CardDescription>Generate images, carousels, and videos for your campaign.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isGeneratingMedia ? (
               <div className="space-y-4">
-                {/* Progress bar */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium">
-                      {mediaProgress
-                        ? `${mediaProgress.completed} of ${mediaProgress.total} complete`
-                        : "Starting..."}
+                      {mediaProgress ? `${mediaProgress.completed} of ${mediaProgress.total} complete` : "Starting..."}
                     </span>
                     {mediaProgress && mediaProgress.failed > 0 && (
                       <span className="text-destructive">{mediaProgress.failed} failed</span>
@@ -705,12 +751,10 @@ export default function CreateCampaignPage() {
                   </div>
                   <p className="text-[10px] text-muted-foreground text-center">
                     {mediaProgress && mediaProgress.total > 0
-                      ? `Estimated ${Math.max(1, Math.round((mediaProgress.total - mediaProgress.completed - mediaProgress.failed) * 0.7))} min remaining`
+                      ? `~${Math.max(1, Math.round((mediaProgress.total - mediaProgress.completed - mediaProgress.failed) * 0.7))} min remaining`
                       : "Preparing..."}
                   </p>
                 </div>
-
-                {/* Post grid with live status */}
                 <div className="grid grid-cols-6 gap-2">
                   {(mediaProgress?.posts || posts).map((post) => {
                     const firstUrl = Object.values(post.media_urls || {})[0] as string;
@@ -718,18 +762,10 @@ export default function CreateCampaignPage() {
                       <div
                         key={post.id}
                         className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium ${
-                          post.status === "ready"
-                            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300"
-                            : post.status === "failed"
-                            ? "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300"
-                            : "bg-muted text-muted-foreground animate-pulse"
+                          post.status === "ready" ? "bg-green-100 dark:bg-green-950/30" : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30" : "bg-muted animate-pulse"
                         }`}
                       >
-                        {firstUrl ? (
-                          <img src={firstUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
-                        ) : (
-                          post.day_number
-                        )}
+                        {firstUrl ? <img src={firstUrl} alt="" className="w-full h-full object-cover" /> : post.day_number}
                       </div>
                     );
                   })}
@@ -737,37 +773,25 @@ export default function CreateCampaignPage() {
               </div>
             ) : (
               <>
-                {/* Show thumbnails if media already generated */}
                 {posts.some((p) => Object.keys(p.media_urls || {}).length > 0) && (
                   <div className="grid grid-cols-5 gap-2">
                     {posts.map((post) => {
                       const firstUrl = Object.values(post.media_urls || {})[0] as string;
                       return (
                         <div key={post.id} className="aspect-square rounded-lg overflow-hidden bg-muted">
-                          {firstUrl ? (
-                            <img src={firstUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                              {post.day_number}
-                            </div>
+                          {firstUrl ? <img src={firstUrl} alt="" className="w-full h-full object-cover" /> : (
+                            <div className="flex items-center justify-center h-full text-xs text-muted-foreground">{post.day_number}</div>
                           )}
                         </div>
                       );
                     })}
                   </div>
                 )}
-
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={goBack} className="flex-1">
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back
-                  </Button>
-                  <Button onClick={handleGenerateMedia} className="flex-1">
-                    <ImageIcon className="mr-2 h-4 w-4" /> Generate Images
-                  </Button>
+                  <Button variant="outline" onClick={goBack} className="flex-1"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                  <Button onClick={handleGenerateMedia} className="flex-1"><ImageIcon className="mr-2 h-4 w-4" /> Generate Media</Button>
                   {posts.some((p) => Object.keys(p.media_urls || {}).length > 0) && (
-                    <Button variant="outline" onClick={goNext}>
-                      Next <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
+                    <Button variant="outline" onClick={goNext}>Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
                   )}
                 </div>
               </>
@@ -776,37 +800,26 @@ export default function CreateCampaignPage() {
         </Card>
       )}
 
-      {/* ── Step 6: Schedule ── */}
+      {/* ══════ STEP 6: SCHEDULE ══════ */}
       {step === "schedule" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Schedule Campaign
-            </CardTitle>
-            <CardDescription>
-              Choose how and when to post, and map platforms to accounts.
-            </CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><Calendar className="h-4 w-4" />Schedule Campaign</CardTitle>
+            <CardDescription>Choose how and when to post.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Schedule Mode */}
             <div className="space-y-2">
               <Label className="text-xs">Scheduling Method</Label>
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  { value: "spread" as const, label: "Spread Evenly", desc: "One post per day at set times" },
-                  { value: "queue" as const, label: "Use My Queue", desc: "Fill your queue slots automatically" },
-                  { value: "custom" as const, label: "Custom Times", desc: "Set multiple times per day" },
+                  { value: "spread" as const, label: "Spread Evenly", desc: "One post per day" },
+                  { value: "queue" as const, label: "Use My Queue", desc: "Fill queue slots" },
+                  { value: "custom" as const, label: "Custom Times", desc: "Multiple daily times" },
                 ]).map((mode) => (
                   <button
-                    key={mode.value}
-                    type="button"
+                    key={mode.value} type="button"
                     onClick={() => setScheduleMode(mode.value)}
-                    className={`rounded-lg border p-3 text-left transition-colors ${
-                      scheduleMode === mode.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-accent/50"
-                    }`}
+                    className={`rounded-lg border p-3 text-left transition-colors ${scheduleMode === mode.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50"}`}
                   >
                     <p className="text-xs font-medium">{mode.label}</p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">{mode.desc}</p>
@@ -815,117 +828,54 @@ export default function CreateCampaignPage() {
               </div>
             </div>
 
-            {/* Start Date (for spread and custom) */}
             {scheduleMode !== "queue" && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Start Date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-9 w-48"
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Start Date</Label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-48" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Posting Times</Label>
+                  {postTimes.map((time, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input type="time" value={time} onChange={(e) => { const u = [...postTimes]; u[i] = e.target.value; setPostTimes(u); }} className="h-8 w-32 text-xs" />
+                      {postTimes.length > 1 && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setPostTimes(postTimes.filter((_, j) => j !== i))}>Remove</Button>}
+                    </div>
+                  ))}
+                  {scheduleMode === "custom" && postTimes.length < 5 && (
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => setPostTimes([...postTimes, "14:00"])}>+ Add Time</Button>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Post Times (for spread and custom) */}
-            {scheduleMode !== "queue" && (
-              <div className="space-y-2">
-                <Label className="text-xs">
-                  Posting Times {scheduleMode === "custom" && "(posts cycle through these times)"}
-                </Label>
-                {postTimes.map((time, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Input
-                      type="time"
-                      value={time}
-                      onChange={(e) => {
-                        const updated = [...postTimes];
-                        updated[i] = e.target.value;
-                        setPostTimes(updated);
-                      }}
-                      className="h-8 w-32 text-xs"
-                    />
-                    {postTimes.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs text-muted-foreground"
-                        onClick={() => setPostTimes(postTimes.filter((_, j) => j !== i))}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                {scheduleMode === "custom" && postTimes.length < 5 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => setPostTimes([...postTimes, "14:00"])}
-                  >
-                    + Add Time
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Queue Preview (for queue mode) */}
-            {scheduleMode === "queue" && (
+            {scheduleMode === "queue" && queueData?.slots?.length ? (
               <div className="space-y-2">
                 <Label className="text-xs">Your Queue Slots</Label>
-                {queueData?.slots?.length ? (
-                  <div className="rounded-lg border border-border divide-y divide-border max-h-48 overflow-y-auto">
-                    {(queueData.slots as string[]).slice(0, 10).map((slot: string, i: number) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
-                        <span>{new Date(slot).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-                        <span className="text-muted-foreground">
-                          {new Date(slot).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                        </span>
-                      </div>
-                    ))}
-                    {(queueData.slots as string[]).length > 10 && (
-                      <div className="px-3 py-2 text-[10px] text-muted-foreground text-center">
-                        +{(queueData.slots as string[]).length - 10} more slots
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-lg bg-muted p-4 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      No queue slots configured. Set up your queue in the Queue page first,
-                      or use &quot;Spread Evenly&quot; instead.
-                    </p>
-                  </div>
-                )}
+                <div className="rounded-lg border border-border divide-y divide-border max-h-48 overflow-y-auto">
+                  {(queueData.slots as string[]).slice(0, 10).map((slot: string, i: number) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                      <span>{new Date(slot).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                      <span className="text-muted-foreground">{new Date(slot).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
+            ) : scheduleMode === "queue" ? (
+              <p className="text-xs text-muted-foreground bg-muted rounded p-4 text-center">No queue slots configured. Set up your queue first.</p>
+            ) : null}
 
-            {/* Account Mapping */}
             <div className="space-y-2">
               <Label className="text-xs">Account Mapping</Label>
-              <p className="text-[10px] text-muted-foreground">
-                Select which account to use for each platform.
-              </p>
-              {selectedPlatforms.map((platform) => {
+              {(selectedPlatforms.length ? selectedPlatforms : (campaign?.platforms || []).map((p: any) => typeof p === "string" ? p : p.platform)).map((platform: string) => {
                 const platformAccounts = accounts.filter((a: any) => a.platform === platform);
                 return (
                   <div key={platform} className="flex items-center gap-3">
                     <span className="text-xs w-24">{PLATFORM_NAMES[platform as Platform] || platform}</span>
-                    <Select
-                      value={accountMap[platform] || ""}
-                      onValueChange={(v) => setAccountMap((prev) => ({ ...prev, [platform]: v }))}
-                    >
-                      <SelectTrigger className="h-8 text-xs flex-1">
-                        <SelectValue placeholder="Select account" />
-                      </SelectTrigger>
+                    <Select value={accountMap[platform] || ""} onValueChange={(v) => setAccountMap((prev) => ({ ...prev, [platform]: v }))}>
+                      <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Select account" /></SelectTrigger>
                       <SelectContent>
-                        {platformAccounts.map((a: any) => (
-                          <SelectItem key={a._id} value={a._id}>
-                            {a.displayName || a.username}
-                          </SelectItem>
-                        ))}
+                        {platformAccounts.map((a: any) => (<SelectItem key={a._id} value={a._id}>{a.displayName || a.username}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -933,37 +883,17 @@ export default function CreateCampaignPage() {
               })}
             </div>
 
-            {/* Summary */}
             <div className="rounded-lg bg-muted p-4 text-center">
               <p className="text-sm font-medium">
-                {posts.filter((p) => p.status === "ready" || p.status === "draft").length} posts
-                will be scheduled
-                {scheduleMode === "queue"
-                  ? " via your queue"
-                  : ` across ${durationDays} days`}
+                {posts.filter((p) => ["ready", "draft"].includes(p.status)).length} posts will be scheduled
+                {scheduleMode === "queue" ? " via your queue" : ` across ${durationDays} days`}
               </p>
-              {scheduleMode !== "queue" && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Starting {new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                  {postTimes.length > 0 && ` at ${postTimes.join(", ")}`}
-                </p>
-              )}
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={goBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-              </Button>
-              <Button
-                onClick={handleSchedule}
-                disabled={scheduleCampaign.isPending || Object.keys(accountMap).length === 0}
-                className="flex-1"
-              >
-                {scheduleCampaign.isPending ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scheduling...</>
-                ) : (
-                  <><Calendar className="mr-2 h-4 w-4" />Schedule Campaign</>
-                )}
+              <Button variant="outline" onClick={goBack} className="flex-1"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+              <Button onClick={handleSchedule} disabled={scheduleCampaign.isPending || Object.keys(accountMap).length === 0} className="flex-1">
+                {scheduleCampaign.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scheduling...</> : <><Calendar className="mr-2 h-4 w-4" />Schedule Campaign</>}
               </Button>
             </div>
           </CardContent>
