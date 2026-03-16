@@ -21,11 +21,11 @@ export interface FreePikTaskResult {
  */
 const IMAGE_MODEL_ENDPOINTS: Record<string, string> = {
   mystic: "/v1/ai/mystic",
-  "nano-banana": "/v1/ai/text-to-image/nano-banana",
+  "nano-banana-pro": "/v1/ai/text-to-image/nano-banana-pro",
   "flux-2-pro": "/v1/ai/text-to-image/flux-2-pro",
-  "flux-kontext-pro": "/v1/ai/text-to-image/flux-kontext-pro",
-  "seedream-4": "/v1/ai/text-to-image/seedream-4",
-  ideogram: "/v1/ai/text-to-image/ideogram",
+  "flux-2-turbo": "/v1/ai/text-to-image/flux-2-turbo",
+  "flux-pro-v1-1": "/v1/ai/text-to-image/flux-pro-v1-1",
+  "seedream-v4-5": "/v1/ai/text-to-image/seedream-v4-5",
 };
 
 /**

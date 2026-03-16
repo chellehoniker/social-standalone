@@ -19,12 +19,12 @@ import {
 import { Loader2, Bot, Key, Image as ImageIcon, Save } from "lucide-react";
 
 const IMAGE_MODELS = [
+  { value: "nano-banana-pro", label: "Nano Banana Pro (Recommended)" },
   { value: "mystic", label: "Mystic (Ultra-realistic)" },
-  { value: "nano-banana", label: "Nano Banana (Fast, high quality)" },
   { value: "flux-2-pro", label: "Flux 2 Pro (Professional)" },
-  { value: "flux-kontext-pro", label: "Flux Kontext Pro (Context-aware)" },
-  { value: "seedream-4", label: "Seedream 4 (Fast)" },
-  { value: "ideogram", label: "Ideogram (Text-in-image)" },
+  { value: "flux-2-turbo", label: "Flux 2 Turbo (Fast)" },
+  { value: "flux-pro-v1-1", label: "Flux Pro 1.1 (Premium)" },
+  { value: "seedream-v4-5", label: "Seedream 4.5 (Fast)" },
 ];
 
 const VIDEO_MODELS = [
