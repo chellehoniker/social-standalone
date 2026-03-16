@@ -9,7 +9,7 @@ const FREEPIK_BASE = "https://api.freepik.com";
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 120; // 6 minutes max per task
 
-interface FreePikTaskResult {
+export interface FreePikTaskResult {
   taskId: string;
   status: "pending" | "processing" | "completed" | "failed";
   resultUrl?: string;
@@ -21,10 +21,32 @@ interface FreePikTaskResult {
  */
 const IMAGE_MODEL_ENDPOINTS: Record<string, string> = {
   mystic: "/v1/ai/mystic",
+  "nano-banana": "/v1/ai/text-to-image/nano-banana",
   "flux-2-pro": "/v1/ai/text-to-image/flux-2-pro",
   "flux-kontext-pro": "/v1/ai/text-to-image/flux-kontext-pro",
   "seedream-4": "/v1/ai/text-to-image/seedream-4",
   ideogram: "/v1/ai/text-to-image/ideogram",
+};
+
+/**
+ * Models that use the Mystic-style API (aspect_ratio + resolution)
+ * vs standard API (width + height).
+ */
+const MYSTIC_STYLE_MODELS = new Set(["mystic"]);
+
+/**
+ * Map aspect ratios to Mystic's named aspect ratio values.
+ */
+const MYSTIC_ASPECT_RATIOS: Record<string, string> = {
+  "4:5": "social_post_4_5",
+  "5:4": "social_5_4",
+  "9:16": "social_story_9_16",
+  "16:9": "widescreen_16_9",
+  "1:1": "square_1_1",
+  "2:3": "portrait_2_3",
+  "3:2": "standard_3_2",
+  "3:4": "traditional_3_4",
+  "4:3": "classic_4_3",
 };
 
 /**
@@ -71,6 +93,15 @@ export class FreePikRateLimitError extends Error {
 }
 
 /**
+ * Compute the aspect ratio string from width and height.
+ */
+function getAspectRatio(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const d = gcd(width, height);
+  return `${width / d}:${height / d}`;
+}
+
+/**
  * Poll a FreePik task until completion or timeout.
  */
 async function pollTask(
@@ -91,6 +122,9 @@ async function pollTask(
     if (status === "completed" || status === "COMPLETED") {
       // Extract result URL from various response formats
       const resultUrl =
+        // Mystic format: data.generated[0]
+        (Array.isArray(data.data?.generated) && data.data.generated[0]) ||
+        // Standard format: data.result[0].url or data.data.result[0].url
         data.data?.result?.[0]?.url ||
         data.data?.result?.url ||
         data.data?.video?.url ||
@@ -131,19 +165,29 @@ export async function generateImage(
   height: number
 ): Promise<FreePikTaskResult> {
   const endpoint = IMAGE_MODEL_ENDPOINTS[model] || IMAGE_MODEL_ENDPOINTS.mystic;
+  const isMysticStyle = MYSTIC_STYLE_MODELS.has(model);
 
-  const body: Record<string, unknown> = {
-    prompt,
-    width,
-    height,
-    num_images: 1,
-  };
+  let body: Record<string, unknown>;
 
-  // Mystic uses a different body format
-  if (model === "mystic") {
-    body.resolution = `${width}x${height}`;
-    delete body.width;
-    delete body.height;
+  if (isMysticStyle) {
+    // Mystic uses named aspect ratios + resolution quality level
+    const ratio = getAspectRatio(width, height);
+    const mysticRatio = MYSTIC_ASPECT_RATIOS[ratio] || "square_1_1";
+
+    body = {
+      prompt,
+      resolution: "2k",
+      aspect_ratio: mysticRatio,
+      num_images: 1,
+    };
+  } else {
+    // Standard models use width/height directly
+    body = {
+      prompt,
+      width,
+      height,
+      num_images: 1,
+    };
   }
 
   const response = await freepikFetch(apiKey, endpoint, {
@@ -153,20 +197,21 @@ export async function generateImage(
 
   const data = await response.json();
 
-  // Some models return results immediately
+  // Some models return results immediately (e.g., in data.data.images or data.data[0])
   const immediateUrl =
+    (Array.isArray(data.data?.generated) && data.data.generated[0]) ||
     data.data?.result?.[0]?.url ||
     data.data?.[0]?.url ||
     data.result?.[0]?.url;
 
   if (immediateUrl) {
-    return { taskId: data.task_id || "immediate", status: "completed", resultUrl: immediateUrl };
+    return { taskId: data.data?.task_id || "immediate", status: "completed", resultUrl: immediateUrl };
   }
 
   // Async models return a task_id to poll
-  const taskId = data.task_id || data.data?.task_id || data.id;
+  const taskId = data.data?.task_id || data.task_id || data.id;
   if (!taskId) {
-    throw new Error("No task ID or immediate result from FreePik");
+    throw new Error(`No task ID or immediate result from FreePik (model: ${model})`);
   }
 
   return pollTask(apiKey, endpoint, taskId);
@@ -192,7 +237,7 @@ export async function generateVideo(
   });
 
   const data = await response.json();
-  const taskId = data.task_id || data.data?.task_id || data.id;
+  const taskId = data.data?.task_id || data.task_id || data.id;
 
   if (!taskId) {
     throw new Error("No task ID from FreePik video generation");
@@ -220,10 +265,9 @@ export async function generateMusic(
   });
 
   const data = await response.json();
-  const taskId = data.task_id || data.data?.task_id || data.id;
+  const taskId = data.data?.task_id || data.task_id || data.id;
 
   if (!taskId) {
-    // Some responses return result immediately
     const immediateUrl = data.data?.audio?.url || data.audio?.url;
     if (immediateUrl) {
       return { taskId: "immediate", status: "completed", resultUrl: immediateUrl };

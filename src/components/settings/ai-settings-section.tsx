@@ -20,6 +20,7 @@ import { Loader2, Bot, Key, Image as ImageIcon, Save } from "lucide-react";
 
 const IMAGE_MODELS = [
   { value: "mystic", label: "Mystic (Ultra-realistic)" },
+  { value: "nano-banana", label: "Nano Banana (Fast, high quality)" },
   { value: "flux-2-pro", label: "Flux 2 Pro (Professional)" },
   { value: "flux-kontext-pro", label: "Flux Kontext Pro (Context-aware)" },
   { value: "seedream-4", label: "Seedream 4 (Fast)" },
