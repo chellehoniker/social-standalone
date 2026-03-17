@@ -1,4 +1,4 @@
-export type { AIProvider, CampaignPlanParams, CampaignDay, CaptionRegenerateParams } from "./provider";
+export type { AIProvider, CampaignPlanParams, CampaignDay, CaptionRegenerateParams, ContentMix } from "./provider";
 export { buildCampaignSystemPrompt, parseCampaignResponse } from "./provider";
 export { OpenAIProvider } from "./openai";
 export { AnthropicProvider } from "./anthropic";

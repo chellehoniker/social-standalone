@@ -59,7 +59,7 @@ export function useCampaign(id: string) {
 export function useCreateCampaign() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { name: string; objective: string; duration_days: number; platforms: string[] }) => {
+    mutationFn: async (data: { name: string; objective: string; duration_days: number; platforms: string[]; content_mix?: string }) => {
       const res = await fetchWithProfile("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

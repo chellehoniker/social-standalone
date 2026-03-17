@@ -5,10 +5,13 @@
  * OpenAI, Anthropic, and Google Gemini.
  */
 
+export type ContentMix = "mostly_images" | "mixed" | "images_only" | "user_decides";
+
 export interface CampaignPlanParams {
   objective: string;
   durationDays: number;
   platforms: string[];
+  contentMix?: ContentMix;
   proseGuide?: string;
   brandGuide?: string;
   copywritingGuide?: string;
@@ -120,7 +123,13 @@ Rules:
 - Twitter/X: under 280 chars, punchy, with 1-2 hashtags
 - Pinterest: keyword-rich description for search
 - Image prompts should be detailed and specific for AI image generation
-- Mix content types: ~60% single images, ~25% carousels (3-5 slides), ~15% video
+- Content mix preference: ${
+    params.contentMix === "images_only" || params.contentMix === "user_decides"
+      ? "100% single images. Do NOT include any carousel or video content types."
+      : params.contentMix === "mostly_images"
+      ? "~85% single images, ~15% carousels (3-5 slides). No videos."
+      : "~60% single images, ~25% carousels (3-5 slides), ~15% video"
+  }
 - For carousels: provide "imagePrompts" array with 3-5 slide descriptions that tell a visual story
 - For videos: provide "videoPrompt" describing camera motion/transitions and "musicPrompt" describing the audio mood
 - "imagePrompt" is always required (used as hero image / video first frame / first carousel slide)

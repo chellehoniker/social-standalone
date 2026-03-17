@@ -89,6 +89,7 @@ export default function CreateCampaignPage() {
   const [objective, setObjective] = useState("");
   const [durationDays, setDurationDays] = useState(30);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [contentMix, setContentMix] = useState<"mostly_images" | "mixed" | "images_only" | "user_decides">("mixed");
 
   // Step 6: Schedule
   const [startDate, setStartDate] = useState(
@@ -201,6 +202,7 @@ export default function CreateCampaignPage() {
         objective,
         duration_days: durationDays,
         platforms: selectedPlatforms,
+        content_mix: contentMix,
       });
       setCampaignId(result.campaign.id);
       updateAccountMap(selectedPlatforms);
@@ -283,6 +285,51 @@ export default function CreateCampaignPage() {
       toast.error("Failed to schedule campaign");
     }
   };
+
+  // Content type switching per day
+  const changeContentType = (dayNumber: number, newType: "image" | "carousel" | "video") => {
+    if (!campaignId) return;
+    const updatedPlan = [...plan];
+    const idx = updatedPlan.findIndex((d: any) => d.day === dayNumber);
+    if (idx < 0) return;
+
+    const day = { ...updatedPlan[idx], contentType: newType };
+
+    if (newType === "carousel" && !day.imagePrompts?.length) {
+      day.imagePrompts = [
+        day.imagePrompt,
+        `${day.theme} - detail view`,
+        `${day.theme} - closer look`,
+        `${day.theme} - call to action`,
+      ];
+    }
+
+    if (newType === "video" && !day.videoPrompt) {
+      day.videoPrompt = "Gentle camera movement, cinematic feel";
+      day.musicPrompt = `Ambient, warm, matching the mood of: ${day.theme}`;
+    }
+
+    if (newType === "image") {
+      delete day.imagePrompts;
+      delete day.videoPrompt;
+      delete day.musicPrompt;
+    }
+
+    updatedPlan[idx] = day;
+    fetchWithProfile(`/api/campaigns/${campaignId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ post_plan: updatedPlan }),
+    }).then(() => refetchCampaign());
+  };
+
+  const MOTION_PRESETS = [
+    { value: "gentle_zoom", label: "Gentle Zoom", prompt: "Slow, smooth zoom into the subject" },
+    { value: "pan_right", label: "Pan Right", prompt: "Smooth horizontal pan from left to right" },
+    { value: "cinematic", label: "Cinematic", prompt: "Cinematic slow zoom with slight camera movement" },
+    { value: "dynamic", label: "Dynamic", prompt: "Energetic camera movement with quick transitions" },
+    { value: "custom", label: "Custom", prompt: "" },
+  ];
 
   const availablePlatforms = [...new Set(accounts.map((a: any) => a.platform as string))];
 
@@ -456,6 +503,32 @@ export default function CreateCampaignPage() {
                 ))}
               </div>
             </div>
+
+            {/* Content Mix */}
+            <div className="space-y-2">
+              <Label className="text-xs">Content Mix</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: "images_only" as const, label: "Images Only", desc: "Simple single-image posts" },
+                  { value: "mostly_images" as const, label: "Mostly Images", desc: "Images with some carousels" },
+                  { value: "mixed" as const, label: "Full Mix", desc: "Images, carousels, and videos" },
+                  { value: "user_decides" as const, label: "I'll Choose", desc: "All images — you change per day" },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setContentMix(opt.value)}
+                    className={`rounded-lg border p-2.5 text-left transition-colors ${
+                      contentMix === opt.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50"
+                    }`}
+                  >
+                    <p className="text-xs font-medium">{opt.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Button className="w-full" disabled={!name || !objective || selectedPlatforms.length === 0 || createCampaign.isPending} onClick={handleCreateCampaign}>
               {createCampaign.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : <>Next: Review Guides <ArrowRight className="ml-2 h-4 w-4" /></>}
             </Button>
@@ -550,9 +623,21 @@ export default function CreateCampaignPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">Day {post.day_number}</Badge>
-                          <span className="text-sm font-medium">{dayPlan?.theme || ""}</span>
+                          <span className="text-sm font-medium truncate">{dayPlan?.theme || ""}</span>
                         </div>
-                        <Badge variant="secondary" className="text-[10px]">{dayPlan?.contentType || "image"}</Badge>
+                        <Select
+                          value={dayPlan?.contentType || "image"}
+                          onValueChange={(v) => changeContentType(post.day_number, v as "image" | "carousel" | "video")}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-[10px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="image">Image</SelectItem>
+                            <SelectItem value="carousel">Carousel</SelectItem>
+                            <SelectItem value="video">Video</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Captions per platform */}
@@ -647,28 +732,61 @@ export default function CreateCampaignPage() {
                         </div>
                       )}
 
-                      {/* Video prompt */}
-                      {dayPlan?.videoPrompt && (
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground uppercase">Video Motion</Label>
-                          <Textarea
-                            defaultValue={dayPlan.videoPrompt}
-                            rows={2}
-                            className="text-xs resize-none"
-                            onBlur={(e) => {
-                              if (e.target.value !== dayPlan.videoPrompt && campaignId) {
-                                const updatedPlan = [...plan];
-                                const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
-                                if (idx >= 0) {
-                                  updatedPlan[idx] = { ...updatedPlan[idx], videoPrompt: e.target.value };
-                                  fetchWithProfile(`/api/campaigns/${campaignId}`, {
-                                    method: "PATCH", headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ post_plan: updatedPlan }),
-                                  });
+                      {/* Video motion preset */}
+                      {dayPlan?.contentType === "video" && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] text-muted-foreground uppercase">Camera Motion</Label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {MOTION_PRESETS.map((preset) => {
+                              const isSelected = dayPlan.videoPrompt === preset.prompt ||
+                                (preset.value === "custom" && !MOTION_PRESETS.slice(0, -1).some((p) => p.prompt === dayPlan.videoPrompt));
+                              return (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  onClick={() => {
+                                    if (preset.value === "custom") return; // handled by textarea below
+                                    const updatedPlan = [...plan];
+                                    const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                    if (idx >= 0) {
+                                      updatedPlan[idx] = { ...updatedPlan[idx], videoPrompt: preset.prompt };
+                                      fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                        method: "PATCH", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ post_plan: updatedPlan }),
+                                      });
+                                    }
+                                  }}
+                                  className={`rounded border p-1.5 text-[10px] text-left transition-colors ${
+                                    isSelected ? "border-primary bg-primary/5 font-medium" : "border-border hover:bg-accent/50"
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {/* Custom motion prompt textarea */}
+                          {!MOTION_PRESETS.slice(0, -1).some((p) => p.prompt === dayPlan.videoPrompt) && (
+                            <Textarea
+                              defaultValue={dayPlan.videoPrompt || ""}
+                              rows={2}
+                              className="text-xs resize-none"
+                              placeholder="Describe the camera motion..."
+                              onBlur={(e) => {
+                                if (e.target.value !== dayPlan.videoPrompt && campaignId) {
+                                  const updatedPlan = [...plan];
+                                  const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                  if (idx >= 0) {
+                                    updatedPlan[idx] = { ...updatedPlan[idx], videoPrompt: e.target.value };
+                                    fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                      method: "PATCH", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ post_plan: updatedPlan }),
+                                    });
+                                  }
                                 }
-                              }
-                            }}
-                          />
+                              }}
+                            />
+                          )}
                         </div>
                       )}
 

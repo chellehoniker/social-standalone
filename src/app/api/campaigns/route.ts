@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, objective, duration_days, platforms } = body;
+  const { name, objective, duration_days, platforms, content_mix } = body;
   if (!name || !objective) {
     return NextResponse.json({ error: "Name and objective are required" }, { status: 400 });
   }
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         objective,
         duration_days: duration_days || 30,
         platforms: platforms || [],
+        content_mix: content_mix || "mixed",
         status: "draft",
       })
       .select()
