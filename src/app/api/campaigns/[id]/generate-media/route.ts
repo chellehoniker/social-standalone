@@ -52,8 +52,9 @@ export async function POST(
     const posts = postsResult.data || [];
     const plan = campaign.post_plan || [];
 
-    // Mark all posts as "generating"
-    for (const post of posts) {
+    // Only process posts that need media (draft or failed — skip ready/scheduled)
+    const postsToProcess = posts.filter((p: any) => p.status === "draft" || p.status === "failed" || p.status === "generating");
+    for (const post of postsToProcess) {
       await (supabase as any)
         .from("campaign_posts")
         .update({ status: "generating", updated_at: new Date().toISOString() })
@@ -67,7 +68,7 @@ export async function POST(
       userId,
       campaign,
       settings,
-      posts,
+      postsToProcess,
       plan
     ).finally(() => activeJobs.delete(campaignId));
 

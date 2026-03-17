@@ -54,8 +54,8 @@ import {
 import type { Platform } from "@/lib/late-api";
 import { PLATFORM_NAMES } from "@/lib/late-api";
 
-type Step = "list" | "objective" | "guides" | "generate" | "review" | "media" | "schedule";
-const WIZARD_STEPS: Step[] = ["objective", "guides", "generate", "review", "media", "schedule"];
+type Step = "list" | "objective" | "guides" | "generate" | "review" | "media" | "finalize" | "schedule";
+const WIZARD_STEPS: Step[] = ["objective", "guides", "generate", "review", "media", "finalize", "schedule"];
 
 const STEP_LABELS: Record<Step, string> = {
   list: "Campaigns",
@@ -64,6 +64,7 @@ const STEP_LABELS: Record<Step, string> = {
   generate: "Generate Plan",
   review: "Review & Edit",
   media: "Generate Media",
+  finalize: "Finalize",
   schedule: "Schedule",
 };
 
@@ -293,6 +294,43 @@ export default function CreateCampaignPage() {
       router.push("/dashboard/calendar");
     } catch {
       toast.error("Failed to schedule campaign");
+    }
+  };
+
+  // Regenerate a single post's media
+  const [regeneratingPostId, setRegeneratingPostId] = useState<string | null>(null);
+  const regeneratePostMedia = async (postId: string) => {
+    if (!campaignId) return;
+    setRegeneratingPostId(postId);
+    try {
+      // Reset this single post to draft so it gets re-processed
+      await fetchWithProfile(`/api/campaigns/${campaignId}/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "draft", media_urls: {}, music_url: null }),
+      });
+      // Kick off generation — only draft/failed posts are processed
+      await fetchWithProfile(`/api/campaigns/${campaignId}/generate-media`, { method: "POST" });
+      // Poll until this specific post is done
+      const pollSingle = setInterval(async () => {
+        const data = await pollMediaStatus();
+        if (data) {
+          const thisPost = data.posts.find((p: any) => p.id === postId);
+          if (thisPost && thisPost.status !== "generating" && thisPost.status !== "draft") {
+            clearInterval(pollSingle);
+            setRegeneratingPostId(null);
+            await refetchCampaign();
+            if (thisPost.status === "ready") {
+              toast.success("Image regenerated");
+            } else {
+              toast.error("Regeneration failed — try editing the prompt");
+            }
+          }
+        }
+      }, 5000);
+    } catch {
+      toast.error("Failed to regenerate");
+      setRegeneratingPostId(null);
     }
   };
 
@@ -944,7 +982,149 @@ export default function CreateCampaignPage() {
         </Card>
       )}
 
-      {/* ══════ STEP 6: SCHEDULE ══════ */}
+      {/* ══════ STEP 6: FINALIZE ══════ */}
+      {step === "finalize" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              Finalize Campaign
+            </CardTitle>
+            <CardDescription>
+              Review every post before scheduling. Edit captions, regenerate images, and make final adjustments.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[600px]">
+              <div className="space-y-6 pr-4">
+                {posts.map((post) => {
+                  const dayPlan = plan.find((d: any) => d.day === post.day_number);
+                  const urls = post.media_urls || {};
+                  const isVideo = !!urls.video;
+                  const isCarousel = dayPlan?.contentType === "carousel";
+                  const displayUrl = (urls.video_still || Object.entries(urls).find(([k]) => !k.includes("video"))?.[1] || Object.values(urls)[0]) as string;
+                  const slideUrls = Object.entries(urls)
+                    .filter(([k]) => k.startsWith("slide_"))
+                    .sort(([a], [b]) => parseInt(a.replace("slide_", "")) - parseInt(b.replace("slide_", "")))
+                    .map(([, url]) => url as string);
+
+                  return (
+                    <div key={post.id} className="rounded-lg border border-border overflow-hidden">
+                      {/* Day header */}
+                      <div className="flex items-center justify-between bg-muted/50 px-4 py-2 border-b border-border">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">Day {post.day_number}</Badge>
+                          <span className="text-sm font-medium truncate">{dayPlan?.theme || ""}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[10px]">
+                            {isVideo ? "Video" : isCarousel ? `Carousel (${slideUrls.length} slides)` : "Image"}
+                          </Badge>
+                          {post.status === "failed" && <Badge variant="destructive" className="text-[10px]">Failed</Badge>}
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-4">
+                        {/* Media preview */}
+                        {isCarousel && slideUrls.length > 0 ? (
+                          <div className="space-y-2">
+                            <Label className="text-[10px] text-muted-foreground uppercase">Carousel Slides</Label>
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                              {slideUrls.map((url, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => { setLightboxUrl(url); setLightboxLabel(`Day ${post.day_number} — Slide ${i + 1}`); }}
+                                  className="shrink-0 w-32 h-40 rounded-lg overflow-hidden bg-muted hover:scale-105 transition-transform cursor-pointer relative"
+                                >
+                                  <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
+                                  <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">{i + 1}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : displayUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}`); }}
+                            className="w-full max-h-64 rounded-lg overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer relative"
+                          >
+                            <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
+                            {isVideo && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">▶ Video</span>}
+                          </button>
+                        ) : (
+                          <div className="h-32 rounded-lg bg-muted flex items-center justify-center text-sm text-muted-foreground">
+                            No media generated
+                          </div>
+                        )}
+
+                        {/* Regenerate button */}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            disabled={regeneratingPostId === post.id || isGeneratingMedia}
+                            onClick={() => regeneratePostMedia(post.id)}
+                          >
+                            {regeneratingPostId === post.id ? (
+                              <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Regenerating...</>
+                            ) : (
+                              <><Sparkles className="mr-1 h-3 w-3" />Regenerate Media</>
+                            )}
+                          </Button>
+                        </div>
+
+                        {/* Captions — editable per platform */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] text-muted-foreground uppercase">Captions</Label>
+                          {Object.entries(post.caption_variants || {}).map(([platform, caption]) => (
+                            <div key={platform} className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">
+                                {PLATFORM_NAMES[platform as Platform] || platform}
+                              </Label>
+                              <Textarea
+                                defaultValue={caption as string}
+                                rows={3}
+                                className="text-xs resize-y"
+                                onBlur={(e) => {
+                                  if (e.target.value !== caption) {
+                                    updatePost.mutate({
+                                      campaignId: campaignId!,
+                                      postId: post.id,
+                                      data: {
+                                        caption_variants: {
+                                          ...post.caption_variants,
+                                          [platform]: e.target.value,
+                                        },
+                                      },
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+
+            <div className="flex gap-3 mt-4">
+              <Button variant="outline" onClick={goBack} className="flex-1">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={goNext} className="flex-1">
+                Next: Schedule <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ══════ STEP 7: SCHEDULE ══════ */}
       {step === "schedule" && (
         <Card>
           <CardHeader>
