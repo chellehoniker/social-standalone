@@ -44,7 +44,13 @@ import {
   FolderOpen,
   Trash2,
   Clock,
+  X,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Platform } from "@/lib/late-api";
 import { PLATFORM_NAMES } from "@/lib/late-api";
 
@@ -98,6 +104,10 @@ export default function CreateCampaignPage() {
   const [scheduleMode, setScheduleMode] = useState<"spread" | "queue" | "custom">("spread");
   const [postTimes, setPostTimes] = useState(["10:00"]);
   const [accountMap, setAccountMap] = useState<Record<string, string>>({});
+
+  // Image lightbox
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxLabel, setLightboxLabel] = useState("");
 
   // Media generation
   const [mediaProgress, setMediaProgress] = useState<{
@@ -875,16 +885,23 @@ export default function CreateCampaignPage() {
                 </div>
                 <div className="grid grid-cols-6 gap-2">
                   {(mediaProgress?.posts || posts).map((post) => {
-                    const firstUrl = Object.values(post.media_urls || {})[0] as string;
+                    const urls = post.media_urls || {};
+                    // Prefer video_still for display, then first non-video URL, then any URL
+                    const displayUrl = (urls.video_still || Object.entries(urls).find(([k]) => !k.includes("video"))?.[1] || Object.values(urls)[0]) as string;
+                    const isVideo = !!urls.video;
                     return (
-                      <div
+                      <button
                         key={post.id}
-                        className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium ${
-                          post.status === "ready" ? "bg-green-100 dark:bg-green-950/30" : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30" : "bg-muted animate-pulse"
+                        type="button"
+                        disabled={!displayUrl}
+                        onClick={() => { if (displayUrl) { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}${isVideo ? " (Video)" : ""}`); } }}
+                        className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium transition-transform relative ${
+                          post.status === "ready" ? "bg-green-100 dark:bg-green-950/30 hover:scale-105 cursor-pointer" : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30" : "bg-muted animate-pulse"
                         }`}
                       >
-                        {firstUrl ? <img src={firstUrl} alt="" className="w-full h-full object-cover" /> : post.day_number}
-                      </div>
+                        {displayUrl ? <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" /> : post.day_number}
+                        {isVideo && displayUrl && <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[8px] px-1 rounded">▶</span>}
+                      </button>
                     );
                   })}
                 </div>
@@ -894,13 +911,22 @@ export default function CreateCampaignPage() {
                 {posts.some((p) => Object.keys(p.media_urls || {}).length > 0) && (
                   <div className="grid grid-cols-5 gap-2">
                     {posts.map((post) => {
-                      const firstUrl = Object.values(post.media_urls || {})[0] as string;
+                      const urls = post.media_urls || {};
+                      const displayUrl = (urls.video_still || Object.entries(urls).find(([k]) => !k.includes("video"))?.[1] || Object.values(urls)[0]) as string;
+                      const isVideo = !!urls.video;
                       return (
-                        <div key={post.id} className="aspect-square rounded-lg overflow-hidden bg-muted">
-                          {firstUrl ? <img src={firstUrl} alt="" className="w-full h-full object-cover" /> : (
+                        <button
+                          key={post.id}
+                          type="button"
+                          disabled={!displayUrl}
+                          onClick={() => { if (displayUrl) { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}`); } }}
+                          className="aspect-square rounded-lg overflow-hidden bg-muted relative hover:scale-105 transition-transform cursor-pointer"
+                        >
+                          {displayUrl ? <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" /> : (
                             <div className="flex items-center justify-center h-full text-xs text-muted-foreground">{post.day_number}</div>
                           )}
-                        </div>
+                          {isVideo && displayUrl && <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[8px] px-1 rounded">▶</span>}
+                        </button>
                       );
                     })}
                   </div>
@@ -1017,6 +1043,27 @@ export default function CreateCampaignPage() {
           </CardContent>
         </Card>
       )}
+      {/* Image Lightbox */}
+      <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          <DialogTitle className="sr-only">{lightboxLabel}</DialogTitle>
+          <div className="relative">
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-sm font-medium">{lightboxLabel}</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLightboxUrl(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {lightboxUrl && (
+              <img
+                src={lightboxUrl}
+                alt={lightboxLabel}
+                className="w-full rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
