@@ -106,9 +106,21 @@ export default function CreateCampaignPage() {
   const [postTimes, setPostTimes] = useState(["10:00"]);
   const [accountMap, setAccountMap] = useState<Record<string, string>>({});
 
-  // Image lightbox
+  // Lightbox (image or video)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxVideoUrl, setLightboxVideoUrl] = useState<string | null>(null);
   const [lightboxLabel, setLightboxLabel] = useState("");
+
+  const openLightbox = (imageUrl: string, label: string, videoUrl?: string) => {
+    setLightboxUrl(imageUrl);
+    setLightboxVideoUrl(videoUrl || null);
+    setLightboxLabel(label);
+  };
+  const closeLightbox = () => {
+    setLightboxUrl(null);
+    setLightboxVideoUrl(null);
+    setLightboxLabel("");
+  };
 
   // Media generation
   const [mediaProgress, setMediaProgress] = useState<{
@@ -932,7 +944,7 @@ export default function CreateCampaignPage() {
                         key={post.id}
                         type="button"
                         disabled={!displayUrl}
-                        onClick={() => { if (displayUrl) { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}${isVideo ? " (Video)" : ""}`); } }}
+                        onClick={() => { if (displayUrl) openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, isVideo ? (urls.video as string) : undefined); }}
                         className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium transition-transform relative ${
                           post.status === "ready" ? "bg-green-100 dark:bg-green-950/30 hover:scale-105 cursor-pointer" : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30" : "bg-muted animate-pulse"
                         }`}
@@ -957,7 +969,7 @@ export default function CreateCampaignPage() {
                           key={post.id}
                           type="button"
                           disabled={!displayUrl}
-                          onClick={() => { if (displayUrl) { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}`); } }}
+                          onClick={() => { if (displayUrl) openLightbox(displayUrl, `Day ${post.day_number}`, isVideo ? (urls.video as string) : undefined); }}
                           className="aspect-square rounded-lg overflow-hidden bg-muted relative hover:scale-105 transition-transform cursor-pointer"
                         >
                           {displayUrl ? <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" /> : (
@@ -1034,7 +1046,7 @@ export default function CreateCampaignPage() {
                                 <button
                                   key={i}
                                   type="button"
-                                  onClick={() => { setLightboxUrl(url); setLightboxLabel(`Day ${post.day_number} — Slide ${i + 1}`); }}
+                                  onClick={() => openLightbox(url, `Day ${post.day_number} — Slide ${i + 1}`)}
                                   className="shrink-0 w-32 h-40 rounded-lg overflow-hidden bg-muted hover:scale-105 transition-transform cursor-pointer relative"
                                 >
                                   <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
@@ -1046,11 +1058,11 @@ export default function CreateCampaignPage() {
                         ) : displayUrl ? (
                           <button
                             type="button"
-                            onClick={() => { setLightboxUrl(displayUrl); setLightboxLabel(`Day ${post.day_number}`); }}
+                            onClick={() => openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, isVideo ? (urls.video as string) : undefined)}
                             className="w-full max-h-64 rounded-lg overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer relative"
                           >
                             <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
-                            {isVideo && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">▶ Video</span>}
+                            {isVideo && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">▶ Play Video</span>}
                           </button>
                         ) : (
                           <div className="h-32 rounded-lg bg-muted flex items-center justify-center text-sm text-muted-foreground">
@@ -1223,24 +1235,32 @@ export default function CreateCampaignPage() {
           </CardContent>
         </Card>
       )}
-      {/* Image Lightbox */}
-      <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
+      {/* Image / Video Lightbox */}
+      <Dialog open={!!lightboxUrl} onOpenChange={closeLightbox}>
         <DialogContent className="max-w-3xl p-2">
           <DialogTitle className="sr-only">{lightboxLabel}</DialogTitle>
           <div className="relative">
             <div className="flex items-center justify-between px-2 py-1">
               <span className="text-sm font-medium">{lightboxLabel}</span>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLightboxUrl(null)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeLightbox}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            {lightboxUrl && (
+            {lightboxVideoUrl ? (
+              <video
+                src={lightboxVideoUrl}
+                controls
+                autoPlay
+                className="w-full rounded-lg"
+                poster={lightboxUrl || undefined}
+              />
+            ) : lightboxUrl ? (
               <img
                 src={lightboxUrl}
                 alt={lightboxLabel}
                 className="w-full rounded-lg"
               />
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
