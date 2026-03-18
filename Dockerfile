@@ -36,6 +36,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install FFmpeg for video+audio compositing
+RUN apk add --no-cache ffmpeg
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -45,8 +48,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Set ownership
-RUN chown -R nextjs:nodejs /app
+# Create temp dir for FFmpeg processing
+RUN mkdir -p /app/tmp && chown -R nextjs:nodejs /app
 
 USER nextjs
 

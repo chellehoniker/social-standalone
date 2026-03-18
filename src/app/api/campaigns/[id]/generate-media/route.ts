@@ -3,7 +3,9 @@ import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validat
 import { createServiceClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto/encrypt";
 import { generateImage, generateVideo, generateMusic } from "@/lib/freepik/client";
+import { compositeVideoWithAudio } from "@/lib/freepik/composite";
 import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey } from "@/lib/ai/platform-sizes";
+import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badRequest, serverError } from "@/lib/api/errors";
 
 /**
@@ -191,6 +193,41 @@ async function processMediaInBackground(
             }
           } catch (err) {
             console.error(`[Media] Music day ${post.day_number}:`, err);
+          }
+        }
+
+        // Step 4: Composite video + music into single file
+        if (mediaUrls["video"] && musicUrl) {
+          try {
+            console.log(`[Media] Compositing video+audio for day ${post.day_number}...`);
+            const compositeBuffer = await compositeVideoWithAudio(mediaUrls["video"], musicUrl);
+
+            // Upload composite via Late media presign
+            const late = await getLateClient();
+            const { data: presignData } = await late.media.getMediaPresignedUrl({
+              body: {
+                filename: `campaign_day${post.day_number}_${Date.now()}.mp4`,
+                contentType: "video/mp4",
+                size: compositeBuffer.length,
+              },
+            });
+
+            if (presignData?.uploadUrl && presignData?.publicUrl) {
+              const uploadRes = await fetch(presignData.uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "video/mp4" },
+                body: new Uint8Array(compositeBuffer),
+              });
+
+              if (uploadRes.ok) {
+                mediaUrls["video"] = presignData.publicUrl;
+                musicUrl = null; // Music is now embedded in the video
+                console.log(`[Media] Composite uploaded for day ${post.day_number}`);
+              }
+            }
+          } catch (err) {
+            console.error(`[Media] Composite failed day ${post.day_number}:`, err);
+            // Non-fatal: video and music remain as separate files
           }
         }
 

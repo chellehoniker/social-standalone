@@ -704,6 +704,9 @@ export default function CreateCampaignPage() {
                       </div>
 
                       {/* Captions per platform */}
+                      <Separator />
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium text-foreground">Captions</Label>
                       {Object.entries(post.caption_variants || {}).map(([platform, caption]) => (
                         <div key={platform} className="space-y-1">
                           <Label className="text-[10px] text-muted-foreground uppercase">
@@ -725,8 +728,12 @@ export default function CreateCampaignPage() {
                           />
                         </div>
                       ))}
+                      </div>
 
-                      {/* Image prompt */}
+                      {/* Image & media prompts */}
+                      <Separator />
+                      <div className="space-y-3">
+                        <Label className="text-xs font-medium text-foreground">Media Prompts</Label>
                       {dayPlan?.imagePrompt && (
                         <div className="space-y-1">
                           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
@@ -878,6 +885,8 @@ export default function CreateCampaignPage() {
                         </div>
                       )}
 
+                      </div>
+
                       {/* Show generated media if it exists */}
                       {Object.keys(post.media_urls || {}).length > 0 && (
                         <div className="flex gap-2 flex-wrap">
@@ -932,7 +941,28 @@ export default function CreateCampaignPage() {
                   </div>
                   <p className="text-[10px] text-muted-foreground text-center">
                     {mediaProgress && mediaProgress.total > 0
-                      ? `~${Math.max(1, Math.round((mediaProgress.total - mediaProgress.completed - mediaProgress.failed) * 0.7))} min remaining`
+                      ? (() => {
+                          const remaining = mediaProgress.total - mediaProgress.completed - mediaProgress.failed;
+                          if (remaining <= 0) return "Finishing up...";
+                          // Estimate based on content types in remaining posts
+                          const remainingPosts = (mediaProgress.posts || []).filter(
+                            (p: any) => p.status === "generating" || p.status === "draft"
+                          );
+                          const videoCount = remainingPosts.filter((p: any) => {
+                            const dp = plan.find((d: any) => d.day === p.day_number);
+                            return dp?.contentType === "video";
+                          }).length;
+                          const carouselCount = remainingPosts.filter((p: any) => {
+                            const dp = plan.find((d: any) => d.day === p.day_number);
+                            return dp?.contentType === "carousel";
+                          }).length;
+                          const imageCount = remaining - videoCount - carouselCount;
+                          // Images ~45s, carousels ~3min (4 slides), videos ~3min (still+video+music)
+                          const estMinutes = Math.max(1, Math.round(
+                            (imageCount * 0.75 + carouselCount * 3 + videoCount * 3)
+                          ));
+                          return `~${estMinutes} min remaining`;
+                        })()
                       : "Preparing..."}
                   </p>
                 </div>

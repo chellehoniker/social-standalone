@@ -4,7 +4,9 @@ import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { createServiceClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto/encrypt";
 import { generateImage, generateVideo, generateMusic } from "@/lib/freepik/client";
+import { compositeVideoWithAudio } from "@/lib/freepik/composite";
 import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey } from "@/lib/ai/platform-sizes";
+import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, rateLimited, badRequest, notFound, serverError } from "@/lib/api/errors";
 
 const activeJobs = new Map<string, boolean>();
@@ -109,6 +111,20 @@ export async function POST(
                 const musicResult = await generateMusic(freepikKey, dayPlan.musicPrompt, 15);
                 if (musicResult.status === "completed" && musicResult.resultUrl) musicUrl = musicResult.resultUrl;
               } catch (err) { console.error(`[Media v1] Music day ${post.day_number}:`, err); }
+            }
+            // Composite video + music into single file
+            if (mediaUrls["video"] && musicUrl) {
+              try {
+                const compositeBuffer = await compositeVideoWithAudio(mediaUrls["video"], musicUrl);
+                const late = await getLateClient();
+                const { data: presignData } = await late.media.getMediaPresignedUrl({
+                  body: { filename: `campaign_v1_day${post.day_number}_${Date.now()}.mp4`, contentType: "video/mp4", size: compositeBuffer.length },
+                });
+                if (presignData?.uploadUrl && presignData?.publicUrl) {
+                  const uploadRes = await fetch(presignData.uploadUrl, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: new Uint8Array(compositeBuffer) });
+                  if (uploadRes.ok) { mediaUrls["video"] = presignData.publicUrl; musicUrl = null; }
+                }
+              } catch (err) { console.error(`[Media v1] Composite day ${post.day_number}:`, err); }
             }
           } else {
             for (const [groupKey, size] of uniqueSizes) {
