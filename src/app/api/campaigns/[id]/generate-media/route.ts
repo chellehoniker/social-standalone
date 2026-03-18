@@ -3,7 +3,7 @@ import { validateTenantFromRequest, isValidationError } from "@/lib/auth/validat
 import { createServiceClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto/encrypt";
 import { generateImage, generateVideo, generateMusic } from "@/lib/freepik/client";
-import { compositeVideoWithAudio } from "@/lib/freepik/composite";
+import { compositeVideoWithAudio, concatenateVideos } from "@/lib/freepik/composite";
 import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey } from "@/lib/ai/platform-sizes";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badRequest, serverError } from "@/lib/api/errors";
@@ -167,14 +167,51 @@ async function processMediaInBackground(
           if (stillResult.status === "completed" && stillResult.resultUrl) {
             mediaUrls["video_still"] = stillResult.resultUrl;
 
-            // Step 2: Video from still
+            // Step 2: Generate video clip(s)
+            // For >10s, chain multiple 10s clips
+            const totalDuration = dayPlan.videoDuration || 5;
+            const clipDuration: 5 | 10 = totalDuration >= 10 ? 10 : 5;
+            const clipCount = Math.max(1, Math.ceil(totalDuration / clipDuration));
+            const videoPrompt = dayPlan.videoPrompt || `Gentle camera movement, ${dayPlan.theme}`;
+
             try {
-              const videoPrompt = dayPlan.videoPrompt || `Gentle camera movement, ${dayPlan.theme}`;
-              const videoResult = await generateVideo(
-                freepikKey, videoModel, videoPrompt, stillResult.resultUrl
-              );
-              if (videoResult.status === "completed" && videoResult.resultUrl) {
-                mediaUrls["video"] = videoResult.resultUrl;
+              if (clipCount === 1) {
+                // Single clip
+                const videoResult = await generateVideo(
+                  freepikKey, videoModel, videoPrompt, stillResult.resultUrl, clipDuration
+                );
+                if (videoResult.status === "completed" && videoResult.resultUrl) {
+                  mediaUrls["video"] = videoResult.resultUrl;
+                }
+              } else {
+                // Multi-clip: generate each, then concatenate with FFmpeg
+                const clipUrls: string[] = [];
+                for (let c = 0; c < clipCount; c++) {
+                  const clipPrompt = c === 0 ? videoPrompt : `${videoPrompt} (continuation, scene ${c + 1})`;
+                  const clipResult = await generateVideo(
+                    freepikKey, videoModel, clipPrompt, stillResult.resultUrl, clipDuration
+                  );
+                  if (clipResult.status === "completed" && clipResult.resultUrl) {
+                    clipUrls.push(clipResult.resultUrl);
+                  }
+                }
+
+                if (clipUrls.length > 1) {
+                  // Concatenate clips with FFmpeg
+                  console.log(`[Media] Concatenating ${clipUrls.length} clips for day ${post.day_number}...`);
+                  const concatBuffer = await concatenateVideos(clipUrls);
+                  const late = await getLateClient();
+                  const { data: presignData } = await late.media.getMediaPresignedUrl({
+                    body: { filename: `campaign_concat_day${post.day_number}_${Date.now()}.mp4`, contentType: "video/mp4", size: concatBuffer.length },
+                  });
+                  if (presignData?.uploadUrl && presignData?.publicUrl) {
+                    const uploadRes = await fetch(presignData.uploadUrl, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: new Uint8Array(concatBuffer) });
+                    if (uploadRes.ok) mediaUrls["video"] = presignData.publicUrl;
+                    else if (clipUrls[0]) mediaUrls["video"] = clipUrls[0]; // fallback to first clip
+                  }
+                } else if (clipUrls.length === 1) {
+                  mediaUrls["video"] = clipUrls[0];
+                }
               }
             } catch (err) {
               console.error(`[Media] Video gen day ${post.day_number}:`, err);
@@ -184,10 +221,12 @@ async function processMediaInBackground(
           console.error(`[Media] Video still day ${post.day_number}:`, err);
         }
 
-        // Step 3: Music
-        if (dayPlan.musicPrompt) {
+        // Step 3: Music (if enabled — default true)
+        const includeMusic = dayPlan.includeMusic !== false;
+        if (includeMusic && dayPlan.musicPrompt) {
           try {
-            const musicResult = await generateMusic(freepikKey, dayPlan.musicPrompt, 15);
+            const musicDuration = Math.max(15, dayPlan.videoDuration || 15);
+            const musicResult = await generateMusic(freepikKey, dayPlan.musicPrompt, musicDuration);
             if (musicResult.status === "completed" && musicResult.resultUrl) {
               musicUrl = musicResult.resultUrl;
             }

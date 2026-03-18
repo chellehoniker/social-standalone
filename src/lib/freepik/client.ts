@@ -234,7 +234,8 @@ export async function generateVideo(
   apiKey: string,
   model: string,
   prompt: string,
-  imageUrl: string
+  imageUrl: string,
+  duration: 5 | 10 = 5
 ): Promise<FreePikTaskResult> {
   const postEndpoint = VIDEO_MODEL_POST_ENDPOINTS[model] || VIDEO_MODEL_POST_ENDPOINTS["kling-o1-pro"];
   const pollEndpoint = VIDEO_MODEL_POLL_ENDPOINTS[model] || VIDEO_MODEL_POLL_ENDPOINTS["kling-o1-pro"];
@@ -244,6 +245,7 @@ export async function generateVideo(
     body: JSON.stringify({
       prompt,
       first_frame: imageUrl,
+      duration,
     }),
   });
 

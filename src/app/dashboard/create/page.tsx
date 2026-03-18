@@ -860,8 +860,62 @@ export default function CreateCampaignPage() {
                         </div>
                       )}
 
-                      {/* Music prompt */}
-                      {dayPlan?.musicPrompt && (
+                      {/* Video duration */}
+                      {dayPlan?.contentType === "video" && (
+                        <div className="flex items-center gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase">Duration</Label>
+                            <Select
+                              value={String(dayPlan.videoDuration || 5)}
+                              onValueChange={(v) => {
+                                if (!campaignId) return;
+                                const updatedPlan = [...plan];
+                                const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                if (idx >= 0) {
+                                  updatedPlan[idx] = { ...updatedPlan[idx], videoDuration: Number(v) };
+                                  fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                    method: "PATCH", headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ post_plan: updatedPlan }),
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-7 w-24 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="5">5 sec</SelectItem>
+                                <SelectItem value="10">10 sec</SelectItem>
+                                <SelectItem value="20">20 sec</SelectItem>
+                                <SelectItem value="30">30 sec</SelectItem>
+                                <SelectItem value="60">60 sec</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase">Music</Label>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={dayPlan.includeMusic !== false}
+                                onCheckedChange={(checked) => {
+                                  if (!campaignId) return;
+                                  const updatedPlan = [...plan];
+                                  const idx = updatedPlan.findIndex((d: any) => d.day === post.day_number);
+                                  if (idx >= 0) {
+                                    updatedPlan[idx] = { ...updatedPlan[idx], includeMusic: !!checked };
+                                    fetchWithProfile(`/api/campaigns/${campaignId}`, {
+                                      method: "PATCH", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ post_plan: updatedPlan }),
+                                    });
+                                  }
+                                }}
+                              />
+                              <span className="text-[10px] text-muted-foreground">Include AI music</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Music prompt (only if music enabled) */}
+                      {dayPlan?.contentType === "video" && dayPlan?.includeMusic !== false && (
                         <div className="space-y-1">
                           <Label className="text-[10px] text-muted-foreground uppercase">Music Mood</Label>
                           <Textarea

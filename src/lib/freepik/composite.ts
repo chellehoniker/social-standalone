@@ -88,6 +88,62 @@ export async function compositeVideoWithAudio(
 }
 
 /**
+ * Concatenate multiple video URLs into a single MP4 using FFmpeg.
+ * Downloads each clip, writes a concat list, and merges them.
+ * Returns the raw file buffer of the concatenated video.
+ */
+export async function concatenateVideos(
+  videoUrls: string[]
+): Promise<Buffer> {
+  if (videoUrls.length === 0) throw new Error("No videos to concatenate");
+  if (videoUrls.length === 1) {
+    // Single video — just download and return
+    const response = await fetch(videoUrls[0]);
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  const clipPaths: string[] = [];
+  let concatListPath: string | null = null;
+  let outputPath: string | null = null;
+
+  try {
+    // Download all clips
+    for (let i = 0; i < videoUrls.length; i++) {
+      const path = await downloadToFile(videoUrls[i], `.mp4`);
+      clipPaths.push(path);
+    }
+
+    // Write FFmpeg concat list file
+    concatListPath = join(TMP_DIR, `${randomUUID()}_concat.txt`);
+    const concatContent = clipPaths.map((p) => `file '${p}'`).join("\n");
+    await writeFile(concatListPath, concatContent);
+
+    // Concatenate
+    outputPath = join(TMP_DIR, `${randomUUID()}_concat_output.mp4`);
+    await runFFmpeg([
+      "-y",
+      "-f", "concat",
+      "-safe", "0",
+      "-i", concatListPath,
+      "-c", "copy",
+      "-movflags", "+faststart",
+      outputPath,
+    ]);
+
+    return await readFile(outputPath);
+  } finally {
+    const cleanup = async (path: string | null) => {
+      if (path) try { await unlink(path); } catch { /* ignore */ }
+    };
+    await Promise.all([
+      ...clipPaths.map((p) => cleanup(p)),
+      cleanup(concatListPath),
+      cleanup(outputPath),
+    ]);
+  }
+}
+
+/**
  * Composite video+audio and upload the result to Late's media storage.
  * Returns the public URL of the combined video.
  */

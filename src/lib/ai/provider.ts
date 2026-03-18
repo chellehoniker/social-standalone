@@ -27,6 +27,8 @@ export interface CampaignDay {
   imagePrompts?: string[]; // for carousel: array of prompts (one per slide)
   videoPrompt?: string;
   musicPrompt?: string; // mood/style for AI music on video posts
+  videoDuration?: number; // total seconds: 5, 10, 20, 30, 60. Clips chained for >10s
+  includeMusic?: boolean; // default true for video posts
   contentType: "image" | "video" | "carousel";
   hashtags?: string[];
 }
