@@ -96,7 +96,7 @@ export default function CreateCampaignPage() {
   const [objective, setObjective] = useState("");
   const [durationDays, setDurationDays] = useState(30);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [contentMix, setContentMix] = useState<"mostly_images" | "mixed" | "images_only" | "user_decides">("mixed");
+  const [contentMix, setContentMix] = useState<"mostly_images" | "mixed" | "images_only" | "videos_only" | "user_decides">("mixed");
 
   // Step 6: Schedule
   const [startDate, setStartDate] = useState(
@@ -541,8 +541,10 @@ export default function CreateCampaignPage() {
             <div className="space-y-1.5">
               <Label className="text-xs">Duration</Label>
               <Select value={String(durationDays)} onValueChange={(v) => setDurationDays(Number(v))}>
-                <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="1">1 post</SelectItem>
+                  <SelectItem value="3">3 days</SelectItem>
                   <SelectItem value="7">7 days</SelectItem>
                   <SelectItem value="14">14 days</SelectItem>
                   <SelectItem value="30">30 days</SelectItem>
@@ -572,6 +574,7 @@ export default function CreateCampaignPage() {
                   { value: "images_only" as const, label: "Images Only", desc: "Simple single-image posts" },
                   { value: "mostly_images" as const, label: "Mostly Images", desc: "Images with some carousels" },
                   { value: "mixed" as const, label: "Full Mix", desc: "Images, carousels, and videos" },
+                  { value: "videos_only" as const, label: "Videos Only", desc: "Every post is a video with music" },
                   { value: "user_decides" as const, label: "I'll Choose", desc: "All images — you change per day" },
                 ]).map((opt) => (
                   <button

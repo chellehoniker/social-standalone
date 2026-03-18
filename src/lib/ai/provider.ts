@@ -5,7 +5,7 @@
  * OpenAI, Anthropic, and Google Gemini.
  */
 
-export type ContentMix = "mostly_images" | "mixed" | "images_only" | "user_decides";
+export type ContentMix = "mostly_images" | "mixed" | "images_only" | "videos_only" | "user_decides";
 
 export interface CampaignPlanParams {
   objective: string;
@@ -128,6 +128,8 @@ Rules:
       ? "100% single images. Do NOT include any carousel or video content types."
       : params.contentMix === "mostly_images"
       ? "~85% single images, ~15% carousels (3-5 slides). No videos."
+      : params.contentMix === "videos_only"
+      ? "100% video posts. Every single day should have contentType 'video' with a videoPrompt describing camera motion and a musicPrompt describing the audio mood. Each post still needs an imagePrompt for the video's first frame."
       : "~60% single images, ~25% carousels (3-5 slides), ~15% video"
   }
 - For carousels: provide "imagePrompts" array with 3-5 slide descriptions that tell a visual story
