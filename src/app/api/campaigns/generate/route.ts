@@ -7,8 +7,8 @@ import { unauthorized, forbidden, serverError, badRequest } from "@/lib/api/erro
 
 /**
  * POST /api/campaigns/generate
- * Generate a campaign plan using the user's AI provider.
- * Body: { campaignId }
+ * Kicks off plan generation in the background and returns immediately.
+ * Poll GET /api/campaigns/[id] for status change from "generating" → "review".
  */
 export async function POST(request: NextRequest) {
   const validation = await validateTenantFromRequest(request);
@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
     const userId = validation.user.id;
 
-    // Get the campaign
     const { data: campaign, error: campError } = await (supabase as any)
       .from("campaigns")
       .select("*")
@@ -44,7 +43,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Get AI settings
     const { data: settings, error: settingsError } = await (supabase as any)
       .from("user_ai_settings")
       .select("*")
@@ -55,7 +53,6 @@ export async function POST(request: NextRequest) {
       return badRequest("AI is not configured. Please add your API keys in Settings.");
     }
 
-    // Decrypt the appropriate API key
     const provider = settings.preferred_ai_provider || "openai";
     const keyField = `${provider}_key_encrypted`;
     const encryptedKey = settings[keyField];
@@ -64,16 +61,36 @@ export async function POST(request: NextRequest) {
       return badRequest(`No API key configured for ${provider}. Please add it in Settings.`);
     }
 
-    const apiKey = decrypt(encryptedKey);
-    const ai = createAIProvider(provider, apiKey);
-
-    // Update campaign status
+    // Mark as generating
     await (supabase as any)
       .from("campaigns")
       .update({ status: "generating", ai_provider_used: provider, updated_at: new Date().toISOString() })
       .eq("id", campaignId);
 
-    // Generate the plan
+    // Fire-and-forget — generate in background
+    generateInBackground(campaignId, userId, campaign, settings, provider, encryptedKey);
+
+    return NextResponse.json({ status: "generating" });
+  } catch (err) {
+    return serverError(err, { action: "generateCampaignPlan", campaignId: body.campaignId });
+  }
+}
+
+/**
+ * Background plan generation — runs after the HTTP response is sent.
+ */
+async function generateInBackground(
+  campaignId: string,
+  userId: string,
+  campaign: any,
+  settings: any,
+  provider: string,
+  encryptedKey: string
+) {
+  try {
+    const apiKey = decrypt(encryptedKey);
+    const ai = createAIProvider(provider as "openai" | "anthropic" | "gemini", apiKey);
+
     const platforms = (campaign.platforms || []).map((p: any) =>
       typeof p === "string" ? p : p.platform
     );
@@ -91,7 +108,9 @@ export async function POST(request: NextRequest) {
       imageStylePrompt: settings.image_style_prompt || undefined,
     });
 
-    // Save plan to campaign
+    const supabase = createServiceClient();
+
+    // Save plan
     await (supabase as any)
       .from("campaigns")
       .update({
@@ -101,8 +120,7 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", campaignId);
 
-    // Create campaign_posts rows
-    // Delete existing posts first (in case of regeneration)
+    // Create campaign_posts
     await (supabase as any)
       .from("campaign_posts")
       .delete()
@@ -113,7 +131,7 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       day_number: day.day,
       caption_variants: day.captions,
-      media_urls: [],
+      media_urls: {},
       status: "draft",
     }));
 
@@ -123,17 +141,16 @@ export async function POST(request: NextRequest) {
         .insert(posts);
     }
 
-    return NextResponse.json({ plan, postCount: plan.length });
+    console.log(`[Campaign] Plan generated for ${campaignId}: ${plan.length} days`);
   } catch (err) {
-    // Reset campaign status on failure
+    console.error(`[Campaign] Plan generation failed for ${campaignId}:`, err);
+    // Reset status on failure
     try {
       const supabase = createServiceClient();
       await (supabase as any)
         .from("campaigns")
         .update({ status: "draft", updated_at: new Date().toISOString() })
-        .eq("id", body.campaignId);
-    } catch { /* ignore cleanup error */ }
-
-    return serverError(err, { action: "generateCampaignPlan", campaignId: body.campaignId });
+        .eq("id", campaignId);
+    } catch { /* ignore */ }
   }
 }

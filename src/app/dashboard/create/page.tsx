@@ -241,13 +241,47 @@ export default function CreateCampaignPage() {
   };
 
   // ── Step 3: Generate Plan ──
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [planProgress, setPlanProgress] = useState(0);
+
   const handleGenerate = async () => {
     if (!campaignId) return;
+    setIsGeneratingPlan(true);
+    setPlanProgress(0);
     try {
+      // Fire-and-forget — returns immediately
       await generatePlan.mutateAsync(campaignId);
-      await refetchCampaign();
-      goNext();
+
+      // Animate progress bar while polling
+      const progressInterval = setInterval(() => {
+        setPlanProgress((p) => Math.min(p + 2, 90)); // slowly fill to 90%
+      }, 2000);
+
+      // Poll campaign status until it changes from "generating"
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await fetchWithProfile(`/api/campaigns/${campaignId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.campaign?.status === "review") {
+              clearInterval(pollInterval);
+              clearInterval(progressInterval);
+              setPlanProgress(100);
+              await refetchCampaign();
+              setIsGeneratingPlan(false);
+              goNext();
+            } else if (data.campaign?.status === "draft") {
+              // Generation failed and reset
+              clearInterval(pollInterval);
+              clearInterval(progressInterval);
+              setIsGeneratingPlan(false);
+              toast.error("Plan generation failed. Try again or use a shorter duration.");
+            }
+          }
+        } catch { /* ignore poll errors */ }
+      }, 5000);
     } catch (err: any) {
+      setIsGeneratingPlan(false);
       toast.error(err.message || "Failed to generate plan");
     }
   };
@@ -723,11 +757,26 @@ export default function CreateCampaignPage() {
               <p><strong>Platforms:</strong> {selectedPlatforms.map((p) => PLATFORM_NAMES[p as Platform] || p).join(", ")}</p>
               <p><strong>AI Provider:</strong> {aiSettings?.preferred_ai_provider || "openai"}</p>
             </div>
-            {generatePlan.isPending ? (
-              <div className="flex flex-col items-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                <p className="text-sm font-medium">Generating your campaign plan...</p>
-                <p className="text-xs text-muted-foreground mt-1">This may take 30-60 seconds</p>
+            {isGeneratingPlan ? (
+              <div className="space-y-4 py-4">
+                <div className="flex flex-col items-center">
+                  <Sparkles className="h-8 w-8 text-primary mb-3 animate-pulse" />
+                  <p className="text-sm font-medium">Writing {durationDays} days of content...</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {durationDays <= 7 ? "This usually takes 1-2 minutes" :
+                     durationDays <= 14 ? "This usually takes 2-3 minutes" :
+                     "This usually takes 3-5 minutes for 30 days"}
+                  </p>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-1000"
+                    style={{ width: `${planProgress}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  The AI is crafting unique captions for each platform and day. You can stay on this page.
+                </p>
               </div>
             ) : (
               <div className="flex gap-3">
