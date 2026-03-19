@@ -245,7 +245,7 @@ export async function generateVideo(
     body: JSON.stringify({
       prompt,
       first_frame: imageUrl,
-      duration,
+      duration: String(duration),
     }),
   });
 

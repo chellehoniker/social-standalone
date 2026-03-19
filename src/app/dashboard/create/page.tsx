@@ -1099,8 +1099,9 @@ export default function CreateCampaignPage() {
                 {posts.map((post) => {
                   const dayPlan = plan.find((d: any) => d.day === post.day_number);
                   const urls = post.media_urls || {};
-                  const isVideo = !!urls.video;
+                  const isVideo = dayPlan?.contentType === "video";
                   const isCarousel = dayPlan?.contentType === "carousel";
+                  const hasVideoFile = !!urls.video;
                   const displayUrl = (urls.video_still || Object.entries(urls).find(([k]) => !k.includes("video"))?.[1] || Object.values(urls)[0]) as string;
                   const slideUrls = Object.entries(urls)
                     .filter(([k]) => k.startsWith("slide_"))
@@ -1145,11 +1146,11 @@ export default function CreateCampaignPage() {
                         ) : displayUrl ? (
                           <button
                             type="button"
-                            onClick={() => openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, isVideo ? (urls.video as string) : undefined)}
+                            onClick={() => openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, hasVideoFile ? (urls.video as string) : undefined)}
                             className="w-full max-h-64 rounded-lg overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer relative"
                           >
                             <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
-                            {isVideo && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">▶ Play Video</span>}
+                            {isVideo && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">{hasVideoFile ? "▶ Play Video" : "⚠ Video failed — click Regenerate"}</span>}
                           </button>
                         ) : (
                           <div className="h-32 rounded-lg bg-muted flex items-center justify-center text-sm text-muted-foreground">
