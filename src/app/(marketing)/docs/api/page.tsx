@@ -856,6 +856,176 @@ curl -X POST \\
               </table>
             </div>
           </section>
+
+          {/* ── Claude Plugin ── */}
+          <section>
+            <h2 className="text-xl font-semibold text-foreground">
+              Claude Code / Cowork Plugin
+            </h2>
+            <p className="mt-2">
+              Create posts and run AI campaigns directly from Claude Code or
+              Claude Cowork. The plugin lets Claude write your captions using
+              the full context of your conversation — it reads your brand
+              guides, knows what you&apos;re working on, and crafts
+              platform-specific content in your voice.
+            </p>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              Install the Plugin
+            </h3>
+            <CodeBlock title="From the Claude Code CLI">
+              {`claude plugin install author-automations-social`}
+            </CodeBlock>
+            <p className="mt-3">
+              Or search for <Code>author-automations-social</Code> in the
+              plugin marketplace within Claude Code or Cowork.
+            </p>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              Setup
+            </h3>
+            <p className="mt-2">
+              After installing, run the setup command to connect your account:
+            </p>
+            <CodeBlock title="In Claude Code">
+              {`/author-automations-social:aa-setup`}
+            </CodeBlock>
+            <p className="mt-3">
+              You&apos;ll be prompted for your API key (the same{" "}
+              <Code>aa_sk_</Code> key from Settings). The plugin stores it
+              locally at{" "}
+              <Code>~/.config/author-automations/config.json</Code> — it&apos;s
+              never sent to Anthropic.
+            </p>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              Quick Post
+            </h3>
+            <p className="mt-2">
+              Create a single post with a slash command or natural language:
+            </p>
+            <CodeBlock title="Slash command">
+              {`/author-automations-social:aa-post My new book is available for pre-order!`}
+            </CodeBlock>
+            <CodeBlock title="Or just tell Claude">
+              {`"Create an Instagram and TikTok post about my book launch"`}
+            </CodeBlock>
+            <p className="mt-3">
+              Claude reads your content guides, writes unique captions for
+              each platform, and schedules the post — all in one conversation.
+            </p>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              AI Campaign
+            </h3>
+            <p className="mt-2">
+              Run a full multi-day campaign from the CLI:
+            </p>
+            <CodeBlock title="Slash command">
+              {`/author-automations-social:aa-campaign 14-day campaign for my spring book launch`}
+            </CodeBlock>
+            <CodeBlock title="Or describe what you need">
+              {`"Create a 30-day social media campaign to promote Curses and Currents across Instagram, TikTok, and Facebook"`}
+            </CodeBlock>
+            <p className="mt-3">
+              Claude will walk you through the full flow:
+            </p>
+            <div className="mt-2 space-y-1 text-xs">
+              <p>1. Ask about your objective and target platforms</p>
+              <p>2. Read your brand, prose, and social media guides</p>
+              <p>3. Write day-by-day captions for each platform (Claude writes these, not a server-side AI)</p>
+              <p>4. Present the plan for your review and edits</p>
+              <p>5. Generate images and videos via FreePik AI</p>
+              <p>6. Schedule everything to your content calendar or queue</p>
+            </div>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              The Hybrid AI Model
+            </h3>
+            <p className="mt-2">
+              Unlike typical integrations, Claude writes your captions directly —
+              not a server-side AI. This means Claude has the full context of your
+              conversation: what book you&apos;re working on, what chapter you just
+              finished, what your audience cares about. Media generation (images,
+              videos, music) happens server-side through your FreePik API key.
+            </p>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              Available Tools
+            </h3>
+            <div className="mt-3 overflow-hidden rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      Tool
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs">
+                  {[
+                    ["aa_list_accounts", "List your connected social accounts"],
+                    ["aa_get_guides", "Read your content guides (brand, prose, social)"],
+                    ["aa_create_post", "Create and schedule a post"],
+                    ["aa_list_posts", "View scheduled/published posts"],
+                    ["aa_update_post", "Edit a scheduled post"],
+                    ["aa_delete_post", "Remove a post"],
+                    ["aa_upload_media", "Get a presigned URL for media upload"],
+                    ["aa_queue_preview", "See upcoming queue slots"],
+                    ["aa_create_campaign", "Start a new campaign"],
+                    ["aa_save_campaign_plan", "Save Claude-generated content plan"],
+                    ["aa_generate_media", "Generate images/videos for campaign"],
+                    ["aa_check_media_status", "Poll media generation progress"],
+                    ["aa_schedule_campaign", "Schedule all campaign posts"],
+                    ["aa_list_campaigns", "View your campaigns"],
+                  ].map(([tool, desc]) => (
+                    <tr key={tool} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2 font-mono text-foreground">{tool}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{desc}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h3 className="mt-6 text-base font-semibold text-foreground">
+              Content Guides
+            </h3>
+            <p className="mt-2">
+              For the best results, set up your content guides in the
+              dashboard under <strong className="text-foreground">Settings &gt; AI Configuration</strong>:
+            </p>
+            <div className="mt-2 space-y-1 text-xs">
+              <p><strong className="text-foreground">Prose Guide</strong> — your writing tone, style, and voice preferences</p>
+              <p><strong className="text-foreground">Brand Guide</strong> — your brand identity, values, and personality</p>
+              <p><strong className="text-foreground">Copywriting Guide</strong> — principles for persuasive copy and CTAs</p>
+              <p><strong className="text-foreground">Social Media Guide</strong> — platform-specific strategies, hashtag usage, posting frequency</p>
+            </div>
+            <p className="mt-3">
+              Claude reads all four guides before writing any caption. The more
+              detail you provide, the better the output matches your voice.
+            </p>
+
+            <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
+              <h4 className="text-sm font-semibold text-foreground">
+                Plugin Source
+              </h4>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The plugin is open source:{" "}
+                <a
+                  href="https://github.com/chellehoniker/claude-code-author-automations"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  github.com/chellehoniker/claude-code-author-automations
+                </a>
+              </p>
+            </div>
+          </section>
         </div>
       </main>
     </div>
