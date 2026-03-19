@@ -28,7 +28,7 @@ export class OpenAIProvider implements AIProvider {
         },
       ],
       temperature: 0.8,
-      max_tokens: 16000,
+      max_tokens: params.durationDays > 14 ? 64000 : 16000,
       response_format: { type: "json_object" },
     });
 

@@ -166,10 +166,34 @@ export function parseCampaignResponse(response: string): CampaignDay[] {
   }
   cleaned = cleaned.trim();
 
-  const parsed = JSON.parse(cleaned);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    // Try to recover from truncated JSON by finding the last complete object
+    // Look for the last "},\n  {" or "}\n]" pattern and close the array
+    const lastCompleteObj = cleaned.lastIndexOf("},");
+    if (lastCompleteObj > 0) {
+      const recovered = cleaned.slice(0, lastCompleteObj + 1) + "]";
+      try {
+        parsed = JSON.parse(recovered);
+        console.log(`[AI] Recovered ${parsed.length} days from truncated JSON (original was cut at position ${cleaned.length})`);
+      } catch {
+        throw e; // Recovery failed, throw original error
+      }
+    } else {
+      throw e;
+    }
+  }
 
   if (!Array.isArray(parsed)) {
-    throw new Error("Expected JSON array from AI response");
+    // OpenAI json_object mode may wrap in an object
+    const arr = parsed.days || parsed.campaign || parsed.posts || parsed.plan;
+    if (Array.isArray(arr)) {
+      parsed = arr;
+    } else {
+      throw new Error("Expected JSON array from AI response");
+    }
   }
 
   return parsed.map((item: any, index: number) => ({

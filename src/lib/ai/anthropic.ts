@@ -20,7 +20,7 @@ export class AnthropicProvider implements AIProvider {
 
     const response = await this.client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 16000,
+      max_tokens: params.durationDays > 14 ? 64000 : 16000,
       system: systemPrompt,
       messages: [
         {
