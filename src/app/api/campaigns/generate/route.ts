@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       durationDays: campaign.duration_days,
       platforms,
       contentMix: campaign.content_mix || "mixed",
+      referenceText: campaign.reference_text || undefined,
       proseGuide: settings.prose_guide || undefined,
       brandGuide: settings.brand_guide || undefined,
       copywritingGuide: settings.copywriting_guide || undefined,

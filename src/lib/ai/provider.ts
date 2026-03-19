@@ -12,6 +12,7 @@ export interface CampaignPlanParams {
   durationDays: number;
   platforms: string[];
   contentMix?: ContentMix;
+  referenceText?: string;
   proseGuide?: string;
   brandGuide?: string;
   copywritingGuide?: string;
@@ -73,6 +74,9 @@ export function buildCampaignSystemPrompt(params: CampaignPlanParams): string {
   }
   if (params.imageStylePrompt) {
     parts.push(`\n## Image Style\nWhen writing image prompts, use this style: ${params.imageStylePrompt}`);
+  }
+  if (params.referenceText) {
+    parts.push(`\n## Reference Material\nThe user has provided the following reference text (e.g., a book chapter, synopsis, or other content). Use this to inform the campaign's themes, tone, and specific details. Pull quotes, character names, plot points, and imagery from this material to make the social media content authentic and specific.\n\n${params.referenceText}`);
   }
 
   parts.push(`

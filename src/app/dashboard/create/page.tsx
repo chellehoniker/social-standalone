@@ -97,6 +97,9 @@ export default function CreateCampaignPage() {
   const [durationDays, setDurationDays] = useState(30);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [contentMix, setContentMix] = useState<"mostly_images" | "mixed" | "images_only" | "videos_only" | "user_decides">("mixed");
+  const [referenceText, setReferenceText] = useState("");
+  const [referenceFileName, setReferenceFileName] = useState("");
+  const [isUploadingRef, setIsUploadingRef] = useState(false);
 
   // Step 6: Schedule
   const [startDate, setStartDate] = useState(
@@ -226,6 +229,7 @@ export default function CreateCampaignPage() {
         duration_days: durationDays,
         platforms: selectedPlatforms,
         content_mix: contentMix,
+        reference_text: referenceText || undefined,
       });
       setCampaignId(result.campaign.id);
       updateAccountMap(selectedPlatforms);
@@ -391,6 +395,34 @@ export default function CreateCampaignPage() {
     { value: "custom", label: "Custom", prompt: "" },
   ];
 
+  // File upload for reference material
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingRef(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetchWithProfile("/api/campaigns/upload-reference", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReferenceText(data.text);
+        setReferenceFileName(data.fileName);
+        toast.success(`Uploaded ${data.fileName} (${data.wordCount.toLocaleString()} words)`);
+      } else {
+        const err = await res.json();
+        toast.error(err.error?.message || err.error || "Upload failed");
+      }
+    } catch {
+      toast.error("Failed to upload file");
+    } finally {
+      setIsUploadingRef(false);
+    }
+  };
+
   const availablePlatforms = [...new Set(accounts.map((a: any) => a.platform as string))];
 
   if (!aiSettings?.ai_enabled) {
@@ -536,7 +568,45 @@ export default function CreateCampaignPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Objective</Label>
-              <Textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="e.g., Promote my new cozy mystery launching April 1st..." rows={4} className="resize-none text-sm" />
+              <Textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="e.g., Promote my new cozy mystery launching April 1st. Build anticipation with character reveals, behind-the-scenes content, and pre-order links..." rows={5} className="resize-y text-sm" />
+            </div>
+
+            {/* Reference Material Upload */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Reference Material (optional)</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Upload a book chapter, synopsis, or other text for the AI to reference. It will pull quotes, character names, and details to make your content authentic.
+              </p>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 cursor-pointer hover:bg-accent/50 transition-colors">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    {isUploadingRef ? "Uploading..." : referenceFileName || "Upload .txt, .md, or .docx"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleReferenceUpload}
+                    className="hidden"
+                    disabled={isUploadingRef}
+                  />
+                </label>
+                {referenceFileName && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => { setReferenceText(""); setReferenceFileName(""); }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              {referenceText && (
+                <p className="text-[10px] text-muted-foreground">
+                  {referenceText.split(/\s+/).filter(Boolean).length.toLocaleString()} words loaded from {referenceFileName}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Duration</Label>
