@@ -8,7 +8,9 @@ import {
   useAccountsHealth,
   useConnectAccount,
   useDeleteAccount,
+  accountKeys,
 } from "@/hooks";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,15 +39,18 @@ import { Users, Plus, Loader2, AlertCircle, RefreshCw, Trash2 } from "lucide-rea
 
 export function AccountsContent() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
 
-  // Show toast for callback redirects
+  // Show toast for callback redirects and force refetch accounts
   useEffect(() => {
     const connected = searchParams.get("connected");
     const error = searchParams.get("error");
     if (connected) {
       toast.success(`${connected} connected successfully!`);
+      // Force refetch accounts to show the newly connected one
+      queryClient.invalidateQueries({ queryKey: accountKeys.all });
       // Clean URL without triggering navigation
       window.history.replaceState(null, "", "/dashboard/accounts");
     }
@@ -53,7 +58,7 @@ export function AccountsContent() {
       toast.error(`Connection failed: ${error}`);
       window.history.replaceState(null, "", "/dashboard/accounts");
     }
-  }, [searchParams]);
+  }, [searchParams, queryClient]);
 
   // Hooks for data fetching
   const { data: accountsData, isLoading } = useAccounts();
