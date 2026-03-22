@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,19 +19,32 @@ import { Loader2, Mail } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
-  // Redirect authenticated users to dashboard
-  // (proxy handles the reverse — redirecting unauthed users from /dashboard to /login)
+  // Lightweight auth check — redirect if already logged in, but never block rendering
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, authLoading, router]);
+    const supabase = createClient();
+
+    // Check session without blocking the page
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Verify the session is actually valid (not just stale cookies)
+        supabase.auth.getUser().then(({ data: { user }, error: userError }) => {
+          if (user && !userError) {
+            router.push("/dashboard");
+          } else {
+            // Stale session — clear it so the login form works
+            supabase.auth.signOut().catch(() => {});
+          }
+        });
+      }
+    }).catch(() => {
+      // Auth check failed — just show the login form
+    });
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,15 +74,6 @@ export default function LoginPage() {
       setSent(true);
     }
   };
-
-  // Show loading while auth state resolves
-  if (authLoading || isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   if (sent) {
     return (
