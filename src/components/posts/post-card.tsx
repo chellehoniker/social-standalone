@@ -44,7 +44,7 @@ interface Post {
     platformPostUrl?: string;
   }>;
   scheduledFor?: string;
-  status: "draft" | "scheduled" | "publishing" | "published" | "failed";
+  status: "draft" | "scheduled" | "publishing" | "published" | "partial" | "failed";
   createdAt: string;
 }
 
@@ -234,15 +234,16 @@ interface PostStatusBadgeProps {
 }
 
 export function PostStatusBadge({ status }: PostStatusBadgeProps) {
-  const config: Record<Post["status"], { variant: "default" | "secondary" | "destructive" | "outline"; label: string; className?: string }> = {
+  const config: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string; className?: string }> = {
     draft: { variant: "outline", label: "Draft" },
     scheduled: { variant: "secondary", label: "Scheduled", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
     publishing: { variant: "secondary", label: "Publishing", className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" },
     published: { variant: "secondary", label: "Published", className: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" },
+    partial: { variant: "secondary", label: "Partial", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
     failed: { variant: "destructive", label: "Failed" },
   };
 
-  const { variant, label, className } = config[status];
+  const { variant, label, className } = config[status] || { variant: "outline" as const, label: status || "Unknown" };
 
   return (
     <Badge variant={variant} className={cn("text-xs capitalize", className)}>
