@@ -333,16 +333,35 @@ export async function GET(
     const supabase = createServiceClient();
     const { data: posts } = await (supabase as any)
       .from("campaign_posts")
-      .select("id, day_number, status, media_urls, music_url")
+      .select("id, day_number, status, media_urls, music_url, updated_at")
       .eq("campaign_id", campaignId)
       .eq("user_id", validation.user.id)
       .order("day_number");
 
     const allPosts = posts || [];
+    const isRunning = activeJobs.has(campaignId);
+
+    // Auto-reset stale "generating" posts if no background job is running
+    // This recovers from container restarts that killed in-flight jobs
+    if (!isRunning) {
+      const staleThreshold = Date.now() - 10 * 60 * 1000; // 10 minutes
+      for (const post of allPosts) {
+        if (post.status === "generating") {
+          const updatedAt = new Date(post.updated_at || 0).getTime();
+          if (updatedAt < staleThreshold || !post.updated_at) {
+            await (supabase as any)
+              .from("campaign_posts")
+              .update({ status: "failed", updated_at: new Date().toISOString() })
+              .eq("id", post.id);
+            post.status = "failed";
+          }
+        }
+      }
+    }
+
     const completed = allPosts.filter((p: any) => p.status === "ready" || p.status === "scheduled").length;
     const failed = allPosts.filter((p: any) => p.status === "failed").length;
     const generating = allPosts.filter((p: any) => p.status === "generating").length;
-    const isRunning = activeJobs.has(campaignId);
 
     return NextResponse.json({
       total: allPosts.length,
