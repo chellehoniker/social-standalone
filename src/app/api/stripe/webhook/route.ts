@@ -100,19 +100,27 @@ export async function POST(request: NextRequest) {
 
         // Only create a new profile if one doesn't exist
         if (!getlateProfileId) {
-          try {
-            const { data: profileData, error: lateError } =
-              await late.profiles.createProfile({
-                body: { name: email.split("@")[0] },
-              });
+          const baseName = email.split("@")[0];
+          for (let attempt = 0; attempt < 3 && !getlateProfileId; attempt++) {
+            const name = attempt === 0
+              ? baseName
+              : `${baseName}-${Math.random().toString(36).slice(2, 6)}`;
+            try {
+              const { data: profileData, error: lateError } =
+                await late.profiles.createProfile({
+                  body: { name },
+                });
 
-            if (lateError) {
-              logger.error(lateError, { action: "createProfile", email });
-            } else {
-              getlateProfileId = profileData?.profile?._id || null;
+              if (lateError) {
+                if (String(lateError).includes("already exists") && attempt < 2) continue;
+                logger.error(lateError, { action: "createProfile", email, attempt });
+              } else {
+                getlateProfileId = profileData?.profile?._id || null;
+              }
+            } catch (e: any) {
+              if (e?.message?.includes("already exists") && attempt < 2) continue;
+              logger.error(e, { action: "createProfile", email, attempt });
             }
-          } catch (e) {
-            logger.error(e, { action: "createProfile", email });
           }
         } else {
           logger.info(`Found existing GetLate profile`, { email, profileId: getlateProfileId });

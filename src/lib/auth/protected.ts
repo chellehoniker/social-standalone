@@ -60,21 +60,38 @@ export async function requireSubscription(): Promise<{
   if (!profile.getlate_profile_id) {
     try {
       const late = await getLateClient();
-      const emailPrefix = (user.email || "user").split("@")[0];
-      const { data: created } = await late.profiles.createProfile({
-        body: { name: emailPrefix },
-      });
+      const email = user.email || "user";
+      // Use email-based name with fallback for duplicates
+      const baseName = email.split("@")[0];
+      let profileId: string | null = null;
 
-      const newProfileId = created?.profile?._id;
-      if (newProfileId) {
+      // Try base name first, then with random suffix if taken
+      for (let attempt = 0; attempt < 3 && !profileId; attempt++) {
+        const name = attempt === 0
+          ? baseName
+          : `${baseName}-${Math.random().toString(36).slice(2, 6)}`;
+        try {
+          const { data: created } = await late.profiles.createProfile({
+            body: { name },
+          });
+          profileId = created?.profile?._id || null;
+        } catch (createErr: any) {
+          if (createErr?.message?.includes("already exists") && attempt < 2) {
+            continue; // Try again with random suffix
+          }
+          throw createErr;
+        }
+      }
+
+      if (profileId) {
         const serviceClient = createServiceClient();
         await serviceClient
           .from("profiles")
-          .update({ getlate_profile_id: newProfileId } as never)
+          .update({ getlate_profile_id: profileId } as never)
           .eq("id", user.id);
 
-        profile.getlate_profile_id = newProfileId;
-        console.log(`[Auth] Auto-provisioned Late profile for ${user.email}: ${newProfileId}`);
+        profile.getlate_profile_id = profileId;
+        console.log(`[Auth] Auto-provisioned Late profile for ${email}: ${profileId}`);
       }
     } catch (e) {
       console.error(`[Auth] Failed to auto-provision Late profile for ${user.email}:`, e);
