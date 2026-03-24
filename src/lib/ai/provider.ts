@@ -128,7 +128,9 @@ Rules:
 - LinkedIn: professional tone, thought leadership angle
 - Twitter/X: under 280 chars, punchy, with 1-2 hashtags
 - Pinterest: keyword-rich description for search
-- Image prompts should be detailed and specific for AI image generation
+- CRITICAL for image prompts: NEVER include text, words, letters, numbers, titles, quotes, or any readable content in image prompts. AI image generators cannot render text — it will appear garbled and ruin the image. Use visual metaphors instead. For example, instead of "text overlay saying 'Book 1 is out now'", write "a glowing book floating over water with dramatic lighting"
+- Image prompts should describe ONE clear visual scene — a single composition, not a storyboard or multiple shots
+- Keep image prompts under 100 words — overly complex prompts produce confused results
 - Content mix preference: ${
     params.contentMix === "images_only" || params.contentMix === "user_decides"
       ? "100% single images. Do NOT include any carousel or video content types."
@@ -139,7 +141,8 @@ Rules:
       : "~60% single images, ~25% carousels (3-5 slides), ~15% video"
   }
 - For carousels: provide "imagePrompts" array with 3-5 slide descriptions that tell a visual story
-- For videos: provide "videoPrompt" describing camera motion/transitions and "musicPrompt" describing the audio mood
+- For videos: "videoPrompt" must describe ONLY simple camera motion for a SINGLE continuous shot (e.g., "slow zoom in", "gentle pan left to right", "cinematic dolly forward"). Do NOT write multi-scene storyboards, cuts, transitions between shots, or text overlays — the video generator creates one 5-10 second continuous clip from a single still image. Keep videoPrompt under 30 words.
+- "musicPrompt" describes the audio mood in simple terms (e.g., "warm acoustic guitar, calm and inviting")
 - "imagePrompt" is always required (used as hero image / video first frame / first carousel slide)
 - Build narrative momentum across the ${params.durationDays} days
 - Only include captions for the platforms listed above
