@@ -58,12 +58,24 @@ export async function POST(
 
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
-    const { data: posts } = await (supabase as any)
+    // Check for posts still generating media — refuse to schedule partially
+    const { data: allCampaignPosts } = await (supabase as any)
       .from("campaign_posts")
       .select("*")
       .eq("campaign_id", campaignId)
-      .in("status", ["draft", "ready"])
       .order("day_number");
+
+    const generating = (allCampaignPosts || []).filter((p: any) => p.status === "generating");
+    if (generating.length > 0) {
+      return badRequest(
+        `${generating.length} post(s) are still generating media. Wait for media generation to complete before scheduling.`
+      );
+    }
+
+    // Pick up draft, ready, and failed posts that haven't been scheduled yet (allows retries)
+    const posts = (allCampaignPosts || []).filter(
+      (p: any) => !p.late_post_id && ["draft", "ready", "failed"].includes(p.status)
+    );
 
     if (!posts?.length) return badRequest("No posts to schedule");
 

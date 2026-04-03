@@ -148,7 +148,9 @@ async function processMediaInBackground(
               defaultSize.width, defaultSize.height
             );
             if (result.status === "completed" && result.resultUrl) {
-              mediaUrls[`slide_${i}`] = result.resultUrl;
+              // Re-upload to Late CDN so the URL doesn't expire
+              const permanentUrl = await reuploadToLateCdn(result.resultUrl, `campaign_day${post.day_number}_slide${i}_${Date.now()}.png`, "image/png");
+              mediaUrls[`slide_${i}`] = permanentUrl || result.resultUrl;
             }
           } catch (err) {
             console.error(`[Media] Carousel slide ${i} day ${post.day_number}:`, err);
@@ -165,7 +167,9 @@ async function processMediaInBackground(
             defaultSize.width, defaultSize.height
           );
           if (stillResult.status === "completed" && stillResult.resultUrl) {
-            mediaUrls["video_still"] = stillResult.resultUrl;
+            // Re-upload still to Late CDN so the URL doesn't expire
+            const permanentStillUrl = await reuploadToLateCdn(stillResult.resultUrl, `campaign_day${post.day_number}_still_${Date.now()}.png`, "image/png");
+            mediaUrls["video_still"] = permanentStillUrl || stillResult.resultUrl;
 
             // Step 2: Generate video clip(s)
             // For >10s, chain multiple 10s clips
@@ -181,7 +185,8 @@ async function processMediaInBackground(
                   freepikKey, videoModel, videoPrompt, stillResult.resultUrl, clipDuration
                 );
                 if (videoResult.status === "completed" && videoResult.resultUrl) {
-                  mediaUrls["video"] = videoResult.resultUrl;
+                  const permanentVideoUrl = await reuploadToLateCdn(videoResult.resultUrl, `campaign_day${post.day_number}_video_${Date.now()}.mp4`, "video/mp4");
+                  mediaUrls["video"] = permanentVideoUrl || videoResult.resultUrl;
                 }
               } else {
                 // Multi-clip: generate each, then concatenate with FFmpeg
@@ -206,11 +211,16 @@ async function processMediaInBackground(
                   });
                   if (presignData?.uploadUrl && presignData?.publicUrl) {
                     const uploadRes = await fetch(presignData.uploadUrl, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: new Uint8Array(concatBuffer) });
-                    if (uploadRes.ok) mediaUrls["video"] = presignData.publicUrl;
-                    else if (clipUrls[0]) mediaUrls["video"] = clipUrls[0]; // fallback to first clip
+                    if (uploadRes.ok) {
+                      mediaUrls["video"] = presignData.publicUrl;
+                    } else if (clipUrls[0]) {
+                      const fallbackUrl = await reuploadToLateCdn(clipUrls[0], `campaign_day${post.day_number}_video_${Date.now()}.mp4`, "video/mp4");
+                      mediaUrls["video"] = fallbackUrl || clipUrls[0];
+                    }
                   }
                 } else if (clipUrls.length === 1) {
-                  mediaUrls["video"] = clipUrls[0];
+                  const permanentClipUrl = await reuploadToLateCdn(clipUrls[0], `campaign_day${post.day_number}_video_${Date.now()}.mp4`, "video/mp4");
+                  mediaUrls["video"] = permanentClipUrl || clipUrls[0];
                 }
               }
             } catch (err) {
@@ -228,7 +238,8 @@ async function processMediaInBackground(
             const musicDuration = Math.max(15, dayPlan.videoDuration || 15);
             const musicResult = await generateMusic(freepikKey, dayPlan.musicPrompt, musicDuration);
             if (musicResult.status === "completed" && musicResult.resultUrl) {
-              musicUrl = musicResult.resultUrl;
+              const permanentMusicUrl = await reuploadToLateCdn(musicResult.resultUrl, `campaign_day${post.day_number}_music_${Date.now()}.mp3`, "audio/mpeg");
+              musicUrl = permanentMusicUrl || musicResult.resultUrl;
             }
           } catch (err) {
             console.error(`[Media] Music day ${post.day_number}:`, err);
@@ -284,7 +295,9 @@ async function processMediaInBackground(
               size.width, size.height
             );
             if (result.status === "completed" && result.resultUrl) {
-              mediaUrls[groupKey] = result.resultUrl;
+              // Re-upload to Late CDN so the URL doesn't expire
+              const permanentUrl = await reuploadToLateCdn(result.resultUrl, `campaign_day${post.day_number}_${groupKey}_${Date.now()}.png`, "image/png");
+              mediaUrls[groupKey] = permanentUrl || result.resultUrl;
             }
           } catch (err) {
             console.error(`[Media] Image ${groupKey} day ${post.day_number}:`, err);
@@ -302,6 +315,40 @@ async function processMediaInBackground(
       music_url: musicUrl,
       status: hasMedia ? "ready" : "failed",
     });
+  }
+}
+
+/**
+ * Re-upload a temporary URL (e.g. Freepik CDN) to Late's permanent CDN.
+ * Returns the permanent URL, or null if upload fails (caller should fall back to original).
+ */
+async function reuploadToLateCdn(
+  sourceUrl: string,
+  filename: string,
+  contentType: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(sourceUrl);
+    if (!response.ok) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    const late = await getLateClient();
+    const { data: presignData } = await late.media.getMediaPresignedUrl({
+      body: { filename, contentType, size: buffer.length },
+    });
+
+    if (!presignData?.uploadUrl || !presignData?.publicUrl) return null;
+
+    const uploadRes = await fetch(presignData.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: new Uint8Array(buffer),
+    });
+
+    return uploadRes.ok ? presignData.publicUrl : null;
+  } catch (err) {
+    console.error(`[Media] Re-upload to CDN failed for ${filename}:`, err);
+    return null;
   }
 }
 

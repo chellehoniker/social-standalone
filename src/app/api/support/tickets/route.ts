@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseRequestBody, CreateTicketSchema } from "@/lib/validations";
 import { serverError } from "@/lib/api/errors";
 import type { SupportTicket } from "@/lib/supabase/types";
-import nodemailer from "nodemailer";
+import { sendEmail } from "@/lib/email/send";
 
 const ADMIN_EMAILS = [
   "grace@indieauthormagazine.com",
@@ -11,35 +11,9 @@ const ADMIN_EMAILS = [
 ];
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://authorautomations.social";
 
-/**
- * Send email notification to admins when a new ticket is created.
- * Uses Amazon SES via SMTP.
- */
 async function notifyAdminOfTicket(ticket: SupportTicket) {
-  const smtpUser = process.env.SES_SMTP_USER;
-  const smtpPass = process.env.SES_SMTP_PASS;
-  const smtpRegion = process.env.SES_SMTP_REGION || "us-east-1";
-
-  if (!smtpUser || !smtpPass) {
-    console.log(
-      `[Support] New ticket from ${ticket.email}: [${ticket.category}] ${ticket.subject} — email skipped (SES credentials not set)`
-    );
-    return;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: `email-smtp.${smtpRegion}.amazonaws.com`,
-    port: 465,
-    secure: true,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
-
-  await transporter.sendMail({
-    from: "Author Automations <notifications@authorautomations.com>",
-    to: ADMIN_EMAILS.join(", "),
+  await sendEmail({
+    to: ADMIN_EMAILS,
     subject: `[Support] ${ticket.category.toUpperCase()}: ${ticket.subject}`,
     html: `
       <h2>New Support Ticket</h2>

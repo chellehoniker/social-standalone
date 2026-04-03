@@ -92,24 +92,34 @@ export async function POST(
             for (let i = 0; i < slidePrompts.length; i++) {
               try {
                 const result = await generateImage(freepikKey, imageModel, appendStyle(slidePrompts[i]), defaultSize.width, defaultSize.height);
-                if (result.status === "completed" && result.resultUrl) mediaUrls[`slide_${i}`] = result.resultUrl;
+                if (result.status === "completed" && result.resultUrl) {
+                  const permanentUrl = await reuploadToLateCdn(result.resultUrl, `campaign_v1_day${post.day_number}_slide${i}_${Date.now()}.png`, "image/png");
+                  mediaUrls[`slide_${i}`] = permanentUrl || result.resultUrl;
+                }
               } catch (err) { console.error(`[Media v1] Slide ${i} day ${post.day_number}:`, err); }
             }
           } else if (dayPlan.contentType === "video") {
             try {
               const stillResult = await generateImage(freepikKey, imageModel, appendStyle(dayPlan.imagePrompt), defaultSize.width, defaultSize.height);
               if (stillResult.status === "completed" && stillResult.resultUrl) {
-                mediaUrls["video_still"] = stillResult.resultUrl;
+                const permanentStillUrl = await reuploadToLateCdn(stillResult.resultUrl, `campaign_v1_day${post.day_number}_still_${Date.now()}.png`, "image/png");
+                mediaUrls["video_still"] = permanentStillUrl || stillResult.resultUrl;
                 try {
                   const videoResult = await generateVideo(freepikKey, videoModel, dayPlan.videoPrompt || "Gentle camera movement", stillResult.resultUrl);
-                  if (videoResult.status === "completed" && videoResult.resultUrl) mediaUrls["video"] = videoResult.resultUrl;
+                  if (videoResult.status === "completed" && videoResult.resultUrl) {
+                    const permanentVideoUrl = await reuploadToLateCdn(videoResult.resultUrl, `campaign_v1_day${post.day_number}_video_${Date.now()}.mp4`, "video/mp4");
+                    mediaUrls["video"] = permanentVideoUrl || videoResult.resultUrl;
+                  }
                 } catch (err) { console.error(`[Media v1] Video day ${post.day_number}:`, err); }
               }
             } catch (err) { console.error(`[Media v1] Still day ${post.day_number}:`, err); }
             if (dayPlan.musicPrompt) {
               try {
                 const musicResult = await generateMusic(freepikKey, dayPlan.musicPrompt, 15);
-                if (musicResult.status === "completed" && musicResult.resultUrl) musicUrl = musicResult.resultUrl;
+                if (musicResult.status === "completed" && musicResult.resultUrl) {
+                  const permanentMusicUrl = await reuploadToLateCdn(musicResult.resultUrl, `campaign_v1_day${post.day_number}_music_${Date.now()}.mp3`, "audio/mpeg");
+                  musicUrl = permanentMusicUrl || musicResult.resultUrl;
+                }
               } catch (err) { console.error(`[Media v1] Music day ${post.day_number}:`, err); }
             }
             // Composite video + music into single file
@@ -130,7 +140,10 @@ export async function POST(
             for (const [groupKey, size] of uniqueSizes) {
               try {
                 const result = await generateImage(freepikKey, imageModel, appendStyle(dayPlan.imagePrompt), size.width, size.height);
-                if (result.status === "completed" && result.resultUrl) mediaUrls[groupKey] = result.resultUrl;
+                if (result.status === "completed" && result.resultUrl) {
+                  const permanentUrl = await reuploadToLateCdn(result.resultUrl, `campaign_v1_day${post.day_number}_${groupKey}_${Date.now()}.png`, "image/png");
+                  mediaUrls[groupKey] = permanentUrl || result.resultUrl;
+                }
               } catch (err) { console.error(`[Media v1] Image ${groupKey} day ${post.day_number}:`, err); }
             }
           }
@@ -148,6 +161,27 @@ export async function POST(
     return NextResponse.json({ status: "started", total: posts.length });
   } catch (err) {
     return serverError(err, { action: "generateMedia", campaignId });
+  }
+}
+
+/**
+ * Re-upload a temporary URL (e.g. Freepik CDN) to Late's permanent CDN.
+ */
+async function reuploadToLateCdn(sourceUrl: string, filename: string, contentType: string): Promise<string | null> {
+  try {
+    const response = await fetch(sourceUrl);
+    if (!response.ok) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const late = await getLateClient();
+    const { data: presignData } = await late.media.getMediaPresignedUrl({
+      body: { filename, contentType, size: buffer.length },
+    });
+    if (!presignData?.uploadUrl || !presignData?.publicUrl) return null;
+    const uploadRes = await fetch(presignData.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: new Uint8Array(buffer) });
+    return uploadRes.ok ? presignData.publicUrl : null;
+  } catch (err) {
+    console.error(`[Media v1] Re-upload to CDN failed for ${filename}:`, err);
+    return null;
   }
 }
 

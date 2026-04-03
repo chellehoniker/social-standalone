@@ -39,8 +39,21 @@ export async function POST(
       .from("campaigns").select("*").eq("id", campaignId).eq("user_id", validation.profile.id).single();
     if (!campaign) return notFound("Campaign");
 
-    const { data: posts } = await (supabase as any)
-      .from("campaign_posts").select("*").eq("campaign_id", campaignId).in("status", ["draft", "ready"]).order("day_number");
+    // Check for posts still generating media — refuse to schedule partially
+    const { data: allCampaignPosts } = await (supabase as any)
+      .from("campaign_posts").select("*").eq("campaign_id", campaignId).order("day_number");
+
+    const generating = (allCampaignPosts || []).filter((p: any) => p.status === "generating");
+    if (generating.length > 0) {
+      return badRequest(
+        `${generating.length} post(s) are still generating media. Wait for media generation to complete before scheduling.`
+      );
+    }
+
+    // Pick up draft, ready, and failed posts that haven't been scheduled yet (allows retries)
+    const posts = (allCampaignPosts || []).filter(
+      (p: any) => !p.late_post_id && ["draft", "ready", "failed"].includes(p.status)
+    );
     if (!posts?.length) return badRequest("No posts to schedule");
 
     const plan = campaign.post_plan || [];
