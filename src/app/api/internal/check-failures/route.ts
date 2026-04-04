@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getLateClient } from "@/lib/late-api";
 import { sendUserAndAdminEmail } from "@/lib/email/send";
@@ -8,14 +9,20 @@ import {
   type FailedPost,
 } from "@/lib/email/templates";
 
+function isValidSecret(provided: string, expected: string): boolean {
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
+
 /**
  * POST /api/internal/check-failures
  * Polls Late API for failed posts across all users and sends notifications.
- * Secured by INTERNAL_API_SECRET header — called by n8n on a schedule.
+ * Secured by x-internal-secret header — called by n8n on a schedule.
  */
 export async function POST(request: NextRequest) {
   const secret = request.headers.get("x-internal-secret");
-  if (!secret || secret !== process.env.CRON_SECRET) {
+  const expected = process.env.CRON_SECRET;
+  if (!secret || !expected || !isValidSecret(secret, expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -103,11 +110,11 @@ export async function POST(request: NextRequest) {
 
         totalNotified++;
         console.log(
-          `[CheckFailures] Notified ${profile.email}: ${newFailures.length} new failure(s)`
+          `[CheckFailures] Notified user ${profile.id}: ${newFailures.length} new failure(s)`
         );
       } catch (err) {
         console.error(
-          `[CheckFailures] Error processing profile ${profile.email}:`,
+          `[CheckFailures] Error processing profile ${profile.id}:`,
           err
         );
       }

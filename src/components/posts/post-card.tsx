@@ -23,6 +23,8 @@ import {
   Video,
   ExternalLink,
   EyeOff,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 const UNPUBLISH_UNSUPPORTED: Platform[] = ["instagram", "tiktok"];
@@ -42,6 +44,7 @@ interface Post {
     accountId: string;
     status?: string;
     platformPostUrl?: string;
+    errorMessage?: string;
   }>;
   scheduledFor?: string;
   status: "draft" | "scheduled" | "publishing" | "published" | "partial" | "failed";
@@ -131,6 +134,26 @@ export function PostCard({
             {format(parseISO(post.scheduledFor), "MMM d, yyyy 'at' h:mm a")}
           </div>
         )}
+
+        {/* Per-platform failure details */}
+        {(post.status === "failed" || post.status === "partial") &&
+          post.platforms.some((p) => p.status) && (
+            <div className="mt-3 space-y-1.5 rounded-md bg-background p-2.5">
+              {post.platforms.map((p, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  {p.status === "published" ? (
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                  )}
+                  <PlatformIcon platform={p.platform as Platform} size="xs" showColor />
+                  <span className={p.status === "published" ? "text-muted-foreground" : "text-red-600 dark:text-red-400"}>
+                    {p.status === "published" ? "Published" : p.errorMessage || "Failed"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
         {/* Actions */}
         {(onEdit || onDelete || onRetry || onUnpublish) && (

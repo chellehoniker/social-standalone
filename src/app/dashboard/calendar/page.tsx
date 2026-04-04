@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns/format";
 import { addMonths } from "date-fns/addMonths";
 import { subMonths } from "date-fns/subMonths";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
-import { useCalendarPosts, useDeletePost, useUpdatePost, useUnpublishPost } from "@/hooks";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePosts, useDeletePost, useUpdatePost, useUnpublishPost, useRetryPost } from "@/hooks";
+import type { PostFilters } from "@/hooks/use-posts";
+import { useCampaignDrafts, type CampaignDraft } from "@/hooks/use-campaigns";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +30,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PostCard } from "@/components/posts";
 import { StandaloneProfileSwitcher } from "@/components/profile-switcher-standalone";
 import { AccountFilter } from "./_components/account-filter";
@@ -37,37 +47,77 @@ import {
   ChevronRight,
   Plus,
   Loader2,
-  Calendar,
   List,
   Grid3X3,
 } from "lucide-react";
 import { toast } from "sonner";
 
 type ViewMode = "list" | "grid";
+type PostStatusFilter = "all" | "scheduled" | "published" | "failed" | "drafts";
 
 export default function CalendarPage() {
+  return (
+    <Suspense>
+      <CalendarPageInner />
+    </Suspense>
+  );
+}
+
+function CalendarPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const statusFilter = (searchParams.get("status") as PostStatusFilter) || "all";
+  const isStatusFiltered = statusFilter !== "all";
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filterAccountIds, setFilterAccountIds] = useState<string[]>([]);
 
-  // Default to list on mobile, grid on desktop
+  // Default to list on mobile, grid on desktop (but always list when status-filtered)
   useEffect(() => {
+    if (isStatusFiltered) return;
     const isMobile = window.innerWidth < 768;
     setViewMode(isMobile ? "list" : "grid");
-  }, []);
+  }, [isStatusFiltered]);
 
   const deleteMutation = useDeletePost();
   const updateMutation = useUpdatePost();
   const unpublishMutation = useUnpublishPost();
+  const retryMutation = useRetryPost();
 
-  // Fetch posts for the current month (with buffer for edge days)
+  // Fetch posts: date-range for calendar, status for filtered, or campaign drafts
   const dateFrom = format(subMonths(startOfMonth(currentDate), 1), "yyyy-MM-dd");
   const dateTo = format(addMonths(endOfMonth(currentDate), 1), "yyyy-MM-dd");
+  const isDraftsView = statusFilter === "drafts";
+  const isLateStatusFiltered = isStatusFiltered && !isDraftsView;
 
-  const { data: postsData, isLoading } = useCalendarPosts(dateFrom, dateTo);
-  const posts = useMemo(() => (postsData?.posts || []) as any[], [postsData?.posts]);
+  const postsFilters: PostFilters = isLateStatusFiltered
+    ? { status: statusFilter as "scheduled" | "published" | "failed", limit: 100 }
+    : { dateFrom, dateTo, limit: 500 };
+
+  const { data: postsData, isLoading: postsLoading } = usePosts(isDraftsView ? {} : postsFilters);
+  const { data: draftsData, isLoading: draftsLoading } = useCampaignDrafts();
+
+  const isLoading = isDraftsView ? draftsLoading : postsLoading;
+  const posts = useMemo(() => {
+    if (isDraftsView) {
+      // Transform campaign drafts to look like posts for the list view
+      return (draftsData?.posts || []).map((d: CampaignDraft) => ({
+        _id: d.id,
+        content: Object.values(d.caption_variants)[0] || "(No content)",
+        scheduledFor: d.scheduled_for || undefined,
+        createdAt: d.created_at,
+        status: d.status as any,
+        platforms: (d.campaign_platforms || []).map((p: string) => ({ platform: p })),
+        mediaItems: Object.values(d.media_urls || {}).filter(Boolean).slice(0, 1).map((url: string) => ({ type: "image" as const, url })),
+        // Campaign draft metadata
+        _campaignDraft: d,
+      }));
+    }
+    return (postsData?.posts || []) as any[];
+  }, [isDraftsView, draftsData, postsData]);
 
   const filteredPosts = useMemo(() => {
     if (filterAccountIds.length === 0) return posts;
@@ -85,12 +135,31 @@ export default function CalendarPage() {
   const handleNextMonth = () => setCurrentDate((d) => addMonths(d, 1));
   const handleToday = () => setCurrentDate(new Date());
 
+  const handleStatusFilter = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "all") {
+      params.delete("status");
+    } else {
+      params.set("status", value);
+    }
+    router.replace(`/dashboard/calendar${params.size ? `?${params}` : ""}`);
+  };
+
   const handleReschedule = async (postId: string, newScheduledFor: string) => {
     try {
       await updateMutation.mutateAsync({ postId, scheduledFor: newScheduledFor });
       toast.success("Post rescheduled");
     } catch {
       toast.error("Failed to reschedule post");
+    }
+  };
+
+  const handleRetry = async (postId: string) => {
+    try {
+      await retryMutation.mutateAsync(postId);
+      toast.success("Post queued for retry");
+    } catch {
+      toast.error("Failed to retry post");
     }
   };
 
@@ -136,66 +205,114 @@ export default function CalendarPage() {
     [monthPosts]
   );
 
+  const statusLabels: Record<PostStatusFilter, string> = {
+    all: "Calendar",
+    scheduled: "Scheduled Posts",
+    published: "Published Posts",
+    failed: "Failed Posts",
+    drafts: "Campaign Drafts",
+  };
+
+  const statusDescriptions: Record<PostStatusFilter, string> = {
+    all: "View and manage your scheduled posts.",
+    scheduled: "Your upcoming scheduled posts.",
+    published: "Posts that have been published.",
+    failed: "Posts that failed to publish. Click a post to retry.",
+    drafts: "Campaign content waiting to be scheduled.",
+  };
+
   return (
     <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Calendar</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">{statusLabels[statusFilter]}</h1>
           <p className="text-muted-foreground">
-            View and manage your scheduled posts.
+            {statusDescriptions[statusFilter]}
           </p>
         </div>
         <StandaloneProfileSwitcher />
       </div>
 
-      {/* Month Navigation */}
+      {/* Toolbar */}
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <h2 className="min-w-32 text-center text-base font-semibold sm:min-w-36">
-                {format(currentDate, "MMMM yyyy")}
-              </h2>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="hidden h-8 sm:inline-flex" onClick={handleToday}>
-                Today
-              </Button>
+              {/* Status filter */}
+              <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                <SelectTrigger className="h-8 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All posts</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="drafts">Drafts</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Month navigation — only shown in calendar mode */}
+              {!isStatusFiltered && (
+                <>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <h2 className="min-w-32 text-center text-base font-semibold sm:min-w-36">
+                    {format(currentDate, "MMMM yyyy")}
+                  </h2>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="hidden h-8 sm:inline-flex" onClick={handleToday}>
+                    Today
+                  </Button>
+                </>
+              )}
+
+              {/* Post count when status-filtered */}
+              {isStatusFiltered && (
+                <span className="text-sm text-muted-foreground">
+                  {filteredPosts.length} {filteredPosts.length === 1 ? "post" : "posts"}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
-              {/* View toggle */}
-              <div className="flex rounded-lg border border-border p-0.5">
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setViewMode("list")}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                </Button>
-              </div>
+              {/* View toggle — only in calendar mode */}
+              {!isStatusFiltered && (
+                <div className="flex rounded-lg border border-border p-0.5">
+                  <Button
+                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setViewMode("grid")}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
 
-              {/* Stats badges - hidden on mobile */}
-              <Badge variant="outline" className="hidden text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 sm:inline-flex">
-                {scheduledCount} scheduled
-              </Badge>
-              <Badge variant="outline" className="hidden text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 sm:inline-flex">
-                {publishedCount} published
-              </Badge>
+              {/* Stats badges — only in calendar mode, hidden on mobile */}
+              {!isStatusFiltered && (
+                <>
+                  <Badge variant="outline" className="hidden text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 sm:inline-flex">
+                    {scheduledCount} scheduled
+                  </Badge>
+                  <Badge variant="outline" className="hidden text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 sm:inline-flex">
+                    {publishedCount} published
+                  </Badge>
+                </>
+              )}
 
               <Button size="sm" className="h-8" asChild>
                 <Link href="/dashboard/compose">
@@ -209,31 +326,25 @@ export default function CalendarPage() {
       </Card>
 
       {/* Account Filter */}
-      <AccountFilter
-        filterAccountIds={filterAccountIds}
-        onFilterChange={setFilterAccountIds}
-      />
+      {!isStatusFiltered && (
+        <AccountFilter
+          filterAccountIds={filterAccountIds}
+          onFilterChange={setFilterAccountIds}
+        />
+      )}
 
-      {/* Calendar Content */}
+      {/* Content */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            {viewMode === "grid" ? (
-              <Calendar className="h-4 w-4" />
-            ) : (
-              <List className="h-4 w-4" />
-            )}
-            {format(currentDate, "MMMM")} Schedule
-          </CardTitle>
-          <CardDescription>
-            {viewMode === "grid"
-              ? "Click a post to view details. Drag a scheduled post to reschedule it."
-              : "Tap a post to view details."}
-          </CardDescription>
-        </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            viewMode === "grid" ? <CalendarSkeleton /> : <ListSkeleton />
+            isStatusFiltered || viewMode === "list" ? <ListSkeleton /> : <CalendarSkeleton />
+          ) : isStatusFiltered ? (
+            <CalendarList
+              currentDate={currentDate}
+              posts={filteredPosts}
+              onPostClick={setSelectedPostId}
+              statusFilter={statusFilter}
+            />
           ) : viewMode === "grid" ? (
             <CalendarGrid
               currentDate={currentDate}
@@ -259,9 +370,27 @@ export default function CalendarPage() {
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Post Details</DialogTitle>
+            <DialogTitle>{selectedPost?._campaignDraft ? "Campaign Draft" : "Post Details"}</DialogTitle>
           </DialogHeader>
-          {selectedPost && (
+          {selectedPost && selectedPost._campaignDraft ? (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-sm">{selectedPost.content || "(No content)"}</p>
+                {selectedPost.mediaItems?.[0] && (
+                  <img src={selectedPost.mediaItems[0].url} alt="" className="mt-3 rounded-lg max-h-48 object-cover" />
+                )}
+              </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Day {selectedPost._campaignDraft.day_number} &middot; {selectedPost._campaignDraft.campaign_name}</span>
+                <Badge variant="outline">{selectedPost._campaignDraft.status === "ready" ? "Ready" : selectedPost._campaignDraft.status}</Badge>
+              </div>
+              <Button asChild className="w-full">
+                <Link href={`/dashboard/create?campaign=${selectedPost._campaignDraft.campaign_id}`}>
+                  Open Campaign to Schedule
+                </Link>
+              </Button>
+            </div>
+          ) : selectedPost ? (
             <PostCard
               post={selectedPost}
               onEdit={(_id) => {
@@ -270,9 +399,10 @@ export default function CalendarPage() {
               onDelete={(id) => {
                 setPostToDelete(id);
               }}
+              onRetry={handleRetry}
               onUnpublish={handleUnpublish}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 

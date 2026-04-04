@@ -20,6 +20,7 @@ interface Post {
   _id: string;
   content: string;
   scheduledFor?: string;
+  createdAt?: string;
   status: "draft" | "scheduled" | "publishing" | "published" | "failed";
   platforms: Array<{ platform: string; accountId?: string }>;
   mediaItems?: Array<{ type: "image" | "video"; url: string }>;
@@ -36,21 +37,52 @@ interface CalendarListProps {
   currentDate: Date;
   posts: Post[];
   onPostClick: (postId: string) => void;
+  statusFilter?: string;
 }
 
 export function CalendarList({
   currentDate,
   posts,
   onPostClick,
+  statusFilter,
 }: CalendarListProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
-  // Group posts by date, filtered to current month
+  const isStatusFiltered = statusFilter && statusFilter !== "all";
+
+  // Group posts by date
   const groupedPosts = useMemo(() => {
+    if (isStatusFiltered) {
+      // Status-filtered mode: use best available date, no month filtering, newest first
+      const sorted = [...posts].sort((a, b) => {
+        const dateA = a.scheduledFor || a.createdAt || "";
+        const dateB = b.scheduledFor || b.createdAt || "";
+        return dateB.localeCompare(dateA);
+      });
+
+      const groups: { date: Date; dateKey: string; posts: Post[] }[] = [];
+      let currentGroup: { date: Date; dateKey: string; posts: Post[] } | null = null;
+
+      sorted.forEach((post) => {
+        const dateStr = post.scheduledFor || post.createdAt;
+        if (!dateStr) return;
+        const postDate = parseISO(dateStr);
+        const dateKey = format(postDate, "yyyy-MM-dd");
+
+        if (!currentGroup || currentGroup.dateKey !== dateKey) {
+          currentGroup = { date: postDate, dateKey, posts: [] };
+          groups.push(currentGroup);
+        }
+        currentGroup.posts.push(post);
+      });
+
+      return groups;
+    }
+
+    // Calendar mode: filter to current month, sort ascending
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
 
-    // Filter posts to current month and sort by date
     const monthPosts = posts
       .filter((post) => {
         if (!post.scheduledFor) return false;
@@ -63,7 +95,6 @@ export function CalendarList({
         return dateA.getTime() - dateB.getTime();
       });
 
-    // Group by date
     const groups: { date: Date; dateKey: string; posts: Post[] }[] = [];
     let currentGroup: { date: Date; dateKey: string; posts: Post[] } | null = null;
 
@@ -79,17 +110,28 @@ export function CalendarList({
     });
 
     return groups;
-  }, [posts, currentDate]);
+  }, [posts, currentDate, isStatusFiltered]);
 
   if (groupedPosts.length === 0) {
+    const emptyMessages: Record<string, { title: string; subtitle: string }> = {
+      failed: { title: "No failed posts", subtitle: "Everything published successfully!" },
+      published: { title: "No published posts yet", subtitle: "Posts will appear here after they publish." },
+      scheduled: { title: "No scheduled posts", subtitle: "Create a post to get started." },
+      drafts: { title: "No campaign drafts", subtitle: "Create a campaign to generate content." },
+    };
+    const msg = (isStatusFiltered && emptyMessages[statusFilter!]) || {
+      title: `No posts for ${format(currentDate, "MMMM yyyy")}`,
+      subtitle: "Create a post to see it here",
+    };
+
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Clock className="h-12 w-12 text-muted-foreground/50" />
         <p className="mt-4 text-sm font-medium text-muted-foreground">
-          No posts scheduled for {format(currentDate, "MMMM yyyy")}
+          {msg.title}
         </p>
         <p className="mt-1 text-xs text-muted-foreground/70">
-          Create a post to see it here
+          {msg.subtitle}
         </p>
       </div>
     );
@@ -169,7 +211,11 @@ export function CalendarList({
                     {/* Time */}
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {format(parseISO(post.scheduledFor!), "h:mm a")}
+                      {post.scheduledFor
+                        ? format(parseISO(post.scheduledFor), "h:mm a")
+                        : post.createdAt
+                          ? format(parseISO(post.createdAt), "h:mm a")
+                          : ""}
                     </span>
 
                     {/* Platforms */}

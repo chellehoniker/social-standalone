@@ -1,5 +1,14 @@
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://authorautomations.social";
 
+function esc(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function layout(body: string): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1a1a1a;">
@@ -28,19 +37,19 @@ export interface FailedPost {
 export function postFailureUserEmail(failures: FailedPost[]): string {
   const postRows = failures.map((f) => `
     <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${f.platform}</strong> (${f.accountName})</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${f.errorMessage}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${esc(f.platform)}</strong> (${esc(f.accountName)})</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">${esc(f.errorMessage)}</td>
     </tr>
   `).join("");
 
-  const contentPreview = failures[0]?.content
+  const rawPreview = failures[0]?.content
     ? failures[0].content.substring(0, 120) + (failures[0].content.length > 120 ? "..." : "")
     : "Your post";
 
   return layout(`
     <h2 style="color: #dc2626;">Post Failed to Publish</h2>
-    <p><strong>Post:</strong> "${contentPreview}"</p>
-    <p><strong>Scheduled for:</strong> ${failures[0]?.scheduledFor || "N/A"}</p>
+    <p><strong>Post:</strong> "${esc(rawPreview)}"</p>
+    <p><strong>Scheduled for:</strong> ${esc(failures[0]?.scheduledFor || "N/A")}</p>
 
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
       <thead>
@@ -54,7 +63,7 @@ export function postFailureUserEmail(failures: FailedPost[]): string {
 
     <h3>What you can do:</h3>
     <ul>
-      <li><a href="${APP_URL}/dashboard">Go to your dashboard</a> to retry the post</li>
+      <li><a href="${APP_URL}/dashboard/calendar?status=failed">View and retry your failed posts</a></li>
       <li><a href="${APP_URL}/dashboard/accounts">Check your account connections</a> to make sure they're still active</li>
     </ul>
 
@@ -68,16 +77,16 @@ export function postFailureUserEmail(failures: FailedPost[]): string {
 export function postFailureAdminEmail(userEmail: string, failures: FailedPost[]): string {
   const postRows = failures.map((f) => `
     <tr>
-      <td style="padding: 4px 8px;">${f.platform}</td>
-      <td style="padding: 4px 8px;">${f.accountName}</td>
-      <td style="padding: 4px 8px;">${f.errorMessage}</td>
-      <td style="padding: 4px 8px; font-family: monospace; font-size: 11px;">${f.postId}</td>
+      <td style="padding: 4px 8px;">${esc(f.platform)}</td>
+      <td style="padding: 4px 8px;">${esc(f.accountName)}</td>
+      <td style="padding: 4px 8px;">${esc(f.errorMessage)}</td>
+      <td style="padding: 4px 8px; font-family: monospace; font-size: 11px;">${esc(f.postId)}</td>
     </tr>
   `).join("");
 
   return layout(`
     <h2>Post Failure Alert</h2>
-    <p><strong>User:</strong> ${userEmail}</p>
+    <p><strong>User:</strong> ${esc(userEmail)}</p>
     <p><strong>Post count:</strong> ${failures.length} platform(s) failed</p>
 
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">
@@ -107,7 +116,7 @@ export interface DisconnectedAccount {
  */
 export function accountDisconnectUserEmail(accounts: DisconnectedAccount[]): string {
   const rows = accounts.map((a) => `
-    <li><strong>${a.platform}</strong> &mdash; ${a.displayName}</li>
+    <li><strong>${esc(a.platform)}</strong> &mdash; ${esc(a.displayName)}</li>
   `).join("");
 
   return layout(`
@@ -127,11 +136,11 @@ export function accountDisconnectUserEmail(accounts: DisconnectedAccount[]): str
  * Admin email for disconnected accounts.
  */
 export function accountDisconnectAdminEmail(userEmail: string, accounts: DisconnectedAccount[]): string {
-  const rows = accounts.map((a) => `<li>${a.platform} &mdash; ${a.displayName} (${a.accountId})</li>`).join("");
+  const rows = accounts.map((a) => `<li>${esc(a.platform)} &mdash; ${esc(a.displayName)} (${esc(a.accountId)})</li>`).join("");
 
   return layout(`
     <h2>Account Disconnect Alert</h2>
-    <p><strong>User:</strong> ${userEmail}</p>
+    <p><strong>User:</strong> ${esc(userEmail)}</p>
     <p><strong>Accounts needing reconnection:</strong></p>
     <ul>${rows}</ul>
     <p><a href="${APP_URL}/admin">View in Admin Panel</a></p>

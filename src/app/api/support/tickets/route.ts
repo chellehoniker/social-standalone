@@ -11,17 +11,21 @@ const ADMIN_EMAILS = [
 ];
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://authorautomations.social";
 
+function esc(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 async function notifyAdminOfTicket(ticket: SupportTicket) {
   await sendEmail({
     to: ADMIN_EMAILS,
     subject: `[Support] ${ticket.category.toUpperCase()}: ${ticket.subject}`,
     html: `
       <h2>New Support Ticket</h2>
-      <p><strong>From:</strong> ${ticket.email}</p>
-      <p><strong>Category:</strong> ${ticket.category}</p>
-      <p><strong>Subject:</strong> ${ticket.subject}</p>
+      <p><strong>From:</strong> ${esc(ticket.email)}</p>
+      <p><strong>Category:</strong> ${esc(ticket.category)}</p>
+      <p><strong>Subject:</strong> ${esc(ticket.subject)}</p>
       <hr />
-      <p>${ticket.description.replace(/\n/g, "<br />")}</p>
+      <p>${esc(ticket.description).replace(/\n/g, "<br />")}</p>
       <hr />
       <p><a href="${APP_URL}/admin/tickets">View in Admin Panel</a></p>
     `,

@@ -50,6 +50,24 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Failed posts warning */}
+      {failedPosts.length > 0 && (
+        <Link
+          href="/dashboard/calendar?status=failed"
+          className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950"
+        >
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {failedPosts.length} {failedPosts.length === 1 ? "post" : "posts"} failed to publish
+            </p>
+            <p className="text-xs opacity-80">
+              Click to review and retry
+            </p>
+          </div>
+        </Link>
+      )}
+
       {/* Account health warning */}
       {accountsNeedingAttention > 0 && (
         <Link
@@ -87,14 +105,14 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="text-center">
+                <Link href="/dashboard/accounts" className="text-center rounded-md p-2 transition-colors hover:bg-background">
                   <div className="flex items-center justify-center gap-1">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-2xl font-semibold">{accounts.length}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">Accounts</p>
-                </div>
-                <div className="text-center">
+                </Link>
+                <Link href="/dashboard/calendar?status=scheduled" className="text-center rounded-md p-2 transition-colors hover:bg-background">
                   <div className="flex items-center justify-center gap-1">
                     <Clock className="h-4 w-4 text-blue-500" />
                     <span className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
@@ -102,8 +120,8 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">Scheduled</p>
-                </div>
-                <div className="text-center">
+                </Link>
+                <Link href="/dashboard/calendar?status=published" className="text-center rounded-md p-2 transition-colors hover:bg-background">
                   <div className="flex items-center justify-center gap-1">
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <span className="text-2xl font-semibold text-green-600 dark:text-green-400">
@@ -111,8 +129,8 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">Published</p>
-                </div>
-                <div className="text-center">
+                </Link>
+                <Link href="/dashboard/calendar?status=failed" className="text-center rounded-md p-2 transition-colors hover:bg-background">
                   <div className="flex items-center justify-center gap-1">
                     <AlertCircle className="h-4 w-4 text-red-500" />
                     <span className="text-2xl font-semibold text-red-600 dark:text-red-400">
@@ -120,7 +138,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">Failed</p>
-                </div>
+                </Link>
               </div>
             )}
           </div>

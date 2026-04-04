@@ -27,11 +27,29 @@ export interface CampaignPost {
   created_at: string;
 }
 
+export interface CampaignDraft extends CampaignPost {
+  campaign_name: string;
+  campaign_status: string;
+  campaign_platforms: string[];
+}
+
 export const campaignKeys = {
   all: ["campaigns"] as const,
   list: () => ["campaigns", "list"] as const,
   detail: (id: string) => ["campaigns", id] as const,
+  drafts: () => ["campaigns", "drafts"] as const,
 };
+
+export function useCampaignDrafts() {
+  return useQuery({
+    queryKey: campaignKeys.drafts(),
+    queryFn: async () => {
+      const res = await fetchWithProfile("/api/campaigns/drafts");
+      if (!res.ok) throw new Error("Failed to fetch campaign drafts");
+      return res.json() as Promise<{ posts: CampaignDraft[] }>;
+    },
+  });
+}
 
 export function useCampaigns() {
   return useQuery({
