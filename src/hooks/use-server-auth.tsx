@@ -13,6 +13,7 @@ interface ServerAuthState {
   getlateProfileId: string | null;
   priceId: string | null;
   currentPeriodEnd: string | null;
+  onboardingCompletedAt: string | null;
   isAuthenticated: true; // Always true since this is only used in protected routes
 }
 
@@ -26,6 +27,7 @@ interface ServerAuthProviderProps {
   getlateProfileId: string | null;
   priceId: string | null;
   currentPeriodEnd: string | null;
+  onboardingCompletedAt: string | null;
 }
 
 /**
@@ -43,6 +45,7 @@ export function ServerAuthProvider({
   getlateProfileId,
   priceId,
   currentPeriodEnd,
+  onboardingCompletedAt,
 }: ServerAuthProviderProps) {
   const value: ServerAuthState = {
     userId,
@@ -51,6 +54,7 @@ export function ServerAuthProvider({
     getlateProfileId,
     priceId,
     currentPeriodEnd,
+    onboardingCompletedAt,
     isAuthenticated: true,
   };
 

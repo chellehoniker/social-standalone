@@ -65,6 +65,7 @@ export interface Database {
           is_admin: boolean;
           api_key_hash: string | null;
           api_key_created_at: string | null;
+          onboarding_completed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -81,6 +82,7 @@ export interface Database {
           is_admin?: boolean;
           api_key_hash?: string | null;
           api_key_created_at?: string | null;
+          onboarding_completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -97,6 +99,7 @@ export interface Database {
           is_admin?: boolean;
           api_key_hash?: string | null;
           api_key_created_at?: string | null;
+          onboarding_completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

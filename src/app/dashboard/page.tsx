@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { useServerAuth } from "@/hooks/use-server-auth";
 import { useAccounts, useAccountsHealth, usePosts, useQueuePreview } from "@/hooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,11 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
+  const serverAuth = useServerAuth();
+  if (serverAuth && !serverAuth.onboardingCompletedAt) {
+    redirect("/dashboard/welcome");
+  }
+
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
   const { data: healthData } = useAccountsHealth();
   const { data: postsData, isLoading: postsLoading } = usePosts({ limit: 10 });

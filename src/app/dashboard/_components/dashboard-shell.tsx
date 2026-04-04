@@ -45,6 +45,7 @@ interface DashboardShellProps {
   getlateProfileId: string | null;
   priceId: string | null;
   currentPeriodEnd: string | null;
+  onboardingCompletedAt: string | null;
 }
 
 const navItems = [
@@ -83,6 +84,7 @@ export function DashboardShell({
   getlateProfileId,
   priceId,
   currentPeriodEnd,
+  onboardingCompletedAt,
 }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -272,6 +274,7 @@ export function DashboardShell({
             getlateProfileId={getlateProfileId}
             priceId={priceId}
             currentPeriodEnd={currentPeriodEnd}
+            onboardingCompletedAt={onboardingCompletedAt}
           >
             <ErrorBoundary>{children}</ErrorBoundary>
           </ServerAuthProvider>

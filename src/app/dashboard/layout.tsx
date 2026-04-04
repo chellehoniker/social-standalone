@@ -18,6 +18,7 @@ export default async function DashboardLayout({
       getlateProfileId={profile.getlate_profile_id}
       priceId={profile.price_id}
       currentPeriodEnd={profile.current_period_end}
+      onboardingCompletedAt={profile.onboarding_completed_at}
     >
       {children}
     </DashboardShell>
