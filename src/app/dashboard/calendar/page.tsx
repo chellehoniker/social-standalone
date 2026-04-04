@@ -385,7 +385,7 @@ function CalendarPageInner() {
                 <Badge variant="outline">{selectedPost._campaignDraft.status === "ready" ? "Ready" : selectedPost._campaignDraft.status}</Badge>
               </div>
               <Button asChild className="w-full">
-                <Link href={`/dashboard/create?campaign=${selectedPost._campaignDraft.campaign_id}`}>
+                <Link href={`/dashboard/create?id=${selectedPost._campaignDraft.campaign_id}`}>
                   Open Campaign to Schedule
                 </Link>
               </Button>
