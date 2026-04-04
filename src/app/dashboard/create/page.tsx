@@ -45,6 +45,9 @@ import {
   Trash2,
   Clock,
   X,
+  Info,
+  Video,
+  Layers,
 } from "lucide-react";
 import {
   Dialog,
@@ -163,6 +166,13 @@ export default function CreateCampaignPage() {
         setStep("review");
       } else if (campaign.status === "generating") {
         setStep("generate");
+      }
+
+      // Auto-detect in-progress media generation (e.g. user navigated away and came back)
+      if (posts.some((p) => p.status === "generating")) {
+        setStep("media");
+        setIsGeneratingMedia(true);
+        pollMediaStatus();
       }
     }
   }, [campaign, posts]);
@@ -1093,7 +1103,31 @@ export default function CreateCampaignPage() {
           <CardContent className="space-y-4">
             {isGeneratingMedia ? (
               <div className="space-y-4">
-                <div className="space-y-2">
+                {/* Active status text */}
+                <div className="text-center">
+                  {(() => {
+                    const activePost = (mediaProgress?.posts || []).find((p: any) => p.status === "generating");
+                    if (activePost) {
+                      const dayPlan = plan.find((d: any) => d.day === activePost.day_number);
+                      const typeLabel = dayPlan?.contentType === "video" ? "video" : dayPlan?.contentType === "carousel" ? "carousel" : "image";
+                      return (
+                        <p className="text-sm font-medium flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          Creating Day {activePost.day_number} {typeLabel}...
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-sm font-medium flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        {mediaProgress ? "Processing..." : "Starting..."}
+                      </p>
+                    );
+                  })()}
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium">
                       {mediaProgress ? `${mediaProgress.completed} of ${mediaProgress.total} complete` : "Starting..."}
@@ -1102,22 +1136,25 @@ export default function CreateCampaignPage() {
                       <span className="text-destructive">{mediaProgress.failed} failed</span>
                     )}
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-primary transition-all duration-500"
                       style={{
                         width: mediaProgress
                           ? `${Math.round(((mediaProgress.completed + mediaProgress.failed) / Math.max(mediaProgress.total, 1)) * 100)}%`
-                          : "0%",
+                          : "5%",
+                        backgroundImage: "linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent)",
+                        backgroundSize: "1rem 1rem",
+                        animation: "progress-stripes 1s linear infinite",
                       }}
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center">
+                  <style>{`@keyframes progress-stripes { 0% { background-position: 1rem 0; } 100% { background-position: 0 0; } }`}</style>
+                  <p className="text-xs text-muted-foreground text-center">
                     {mediaProgress && mediaProgress.total > 0
                       ? (() => {
                           const remaining = mediaProgress.total - mediaProgress.completed - mediaProgress.failed;
                           if (remaining <= 0) return "Finishing up...";
-                          // Estimate based on content types in remaining posts
                           const remainingPosts = (mediaProgress.posts || []).filter(
                             (p: any) => p.status === "generating" || p.status === "draft"
                           );
@@ -1130,7 +1167,6 @@ export default function CreateCampaignPage() {
                             return dp?.contentType === "carousel";
                           }).length;
                           const imageCount = remaining - videoCount - carouselCount;
-                          // Images ~45s, carousels ~3min (4 slides), videos ~3min (still+video+music)
                           const estMinutes = Math.max(1, Math.round(
                             (imageCount * 0.75 + carouselCount * 3 + videoCount * 3)
                           ));
@@ -1139,27 +1175,67 @@ export default function CreateCampaignPage() {
                       : "Preparing..."}
                   </p>
                 </div>
-                <div className="grid grid-cols-6 gap-2">
+
+                {/* Per-item grid with status icons and content type labels */}
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                   {(mediaProgress?.posts || posts).map((post) => {
                     const urls = post.media_urls || {};
-                    // Prefer video_still for display, then first non-video URL, then any URL
                     const displayUrl = (urls.video_still || Object.entries(urls).find(([k]) => !k.includes("video"))?.[1] || Object.values(urls)[0]) as string;
                     const isVideo = !!urls.video;
+                    const dayPlan = plan.find((d: any) => d.day === post.day_number);
+                    const contentType = dayPlan?.contentType || "image";
+
                     return (
-                      <button
-                        key={post.id}
-                        type="button"
-                        disabled={!displayUrl}
-                        onClick={() => { if (displayUrl) openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, isVideo ? (urls.video as string) : undefined); }}
-                        className={`aspect-square rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium transition-transform relative ${
-                          post.status === "ready" ? "bg-green-100 dark:bg-green-950/30 hover:scale-105 cursor-pointer" : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30" : "bg-muted animate-pulse"
-                        }`}
-                      >
-                        {displayUrl ? <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" /> : post.day_number}
-                        {isVideo && displayUrl && <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[8px] px-1 rounded">▶</span>}
-                      </button>
+                      <div key={post.id} className="space-y-1">
+                        <button
+                          type="button"
+                          disabled={!displayUrl}
+                          onClick={() => { if (displayUrl) openLightbox(displayUrl, `Day ${post.day_number}${isVideo ? " (Video)" : ""}`, isVideo ? (urls.video as string) : undefined); }}
+                          className={`aspect-square w-full rounded-lg overflow-hidden flex items-center justify-center text-xs font-medium transition-transform relative ${
+                            post.status === "ready" ? "bg-green-100 dark:bg-green-950/30 ring-2 ring-green-300 dark:ring-green-700 hover:scale-105 cursor-pointer"
+                            : post.status === "failed" ? "bg-red-100 dark:bg-red-950/30 ring-2 ring-red-300 dark:ring-red-700"
+                            : post.status === "generating" ? "bg-blue-50 dark:bg-blue-950/30 ring-2 ring-blue-300 dark:ring-blue-700"
+                            : "bg-muted"
+                          }`}
+                        >
+                          {displayUrl ? (
+                            <img src={displayUrl} alt={`Day ${post.day_number}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-muted-foreground">{post.day_number}</span>
+                          )}
+                          {/* Status overlay */}
+                          {post.status === "generating" && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10">
+                              <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                            </div>
+                          )}
+                          {post.status === "ready" && !displayUrl && (
+                            <CheckCircle2 className="absolute h-4 w-4 text-green-500" />
+                          )}
+                          {post.status === "failed" && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
+                              <X className="h-5 w-5 text-red-500" />
+                            </div>
+                          )}
+                          {isVideo && displayUrl && <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[8px] px-1 rounded">▶</span>}
+                        </button>
+                        {/* Content type label */}
+                        <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                          {contentType === "video" ? <Video className="h-2.5 w-2.5" /> : contentType === "carousel" ? <Layers className="h-2.5 w-2.5" /> : <ImageIcon className="h-2.5 w-2.5" />}
+                          <span className="capitalize">{contentType}</span>
+                        </div>
+                      </div>
                     );
                   })}
+                </div>
+
+                {/* Reassurance info */}
+                <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <p className="font-medium">This is working — no need to wait here</p>
+                    <p className="opacity-80">Videos take about 3 minutes each. Images are faster (~45 seconds). You can leave this page and come back — generation continues in the background.</p>
+                  </div>
                 </div>
               </div>
             ) : (

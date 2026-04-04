@@ -7,6 +7,8 @@ import { compositeVideoWithAudio, concatenateVideos } from "@/lib/freepik/compos
 import { PLATFORM_IMAGE_SIZES, getDefaultSizeKey } from "@/lib/ai/platform-sizes";
 import { getLateClient } from "@/lib/late-api";
 import { unauthorized, forbidden, badRequest, serverError } from "@/lib/api/errors";
+import { sendEmail } from "@/lib/email/send";
+import { mediaGenerationCompleteEmail } from "@/lib/email/templates";
 
 /**
  * In-memory tracking of active generation jobs.
@@ -315,6 +317,39 @@ async function processMediaInBackground(
       music_url: musicUrl,
       status: hasMedia ? "ready" : "failed",
     });
+  }
+
+  // Send completion email to user
+  try {
+    const supabaseForEmail = createServiceClient();
+    const { data: profile } = await (supabaseForEmail as any)
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .single();
+
+    if (profile?.email) {
+      // Count final results
+      let completed = 0;
+      let failed = 0;
+      const { data: finalPosts } = await (supabaseForEmail as any)
+        .from("campaign_posts")
+        .select("status")
+        .eq("campaign_id", campaignId);
+
+      for (const p of finalPosts || []) {
+        if (p.status === "ready" || p.status === "scheduled") completed++;
+        else if (p.status === "failed") failed++;
+      }
+
+      await sendEmail({
+        to: profile.email,
+        subject: `Your campaign media is ready: ${campaign.name}`,
+        html: mediaGenerationCompleteEmail(campaign.name, campaignId, completed, failed),
+      });
+    }
+  } catch (emailErr) {
+    console.error(`[Media] Failed to send completion email for ${campaignId}:`, emailErr);
   }
 }
 

@@ -146,3 +146,18 @@ export function accountDisconnectAdminEmail(userEmail: string, accounts: Disconn
     <p><a href="${APP_URL}/admin">View in Admin Panel</a></p>
   `);
 }
+
+/**
+ * Email to user when campaign media generation is complete.
+ */
+export function mediaGenerationCompleteEmail(campaignName: string, campaignId: string, completed: number, failed: number): string {
+  const total = completed + failed;
+  return layout(`
+    <h2 style="color: #16a34a;">Your campaign media is ready!</h2>
+    <p><strong>Campaign:</strong> ${esc(campaignName)}</p>
+    <p>${completed} of ${total} media items generated successfully.${failed > 0 ? ` ${failed} failed and can be regenerated.` : ""}</p>
+    <p style="margin-top: 16px;">
+      <a href="${APP_URL}/dashboard/create?id=${esc(campaignId)}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px;">Review &amp; Schedule Campaign</a>
+    </p>
+  `);
+}
